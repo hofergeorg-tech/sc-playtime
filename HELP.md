@@ -86,6 +86,11 @@ Clicking the header of the overlay expands or collapses the statistics.
 
   The current period is highlighted in green. Hover over a bar to see the exact period
   and playtime at the bottom.
+
+  With a channel filter active (e.g. PTU), the colored bars show only that channel.
+  Behind them, the total of all channels is shown in grey and the scale stays the same
+  as for "ALL" – so you can see at a glance which share belongs to the channel. Hovering
+  shows e.g. "PTU 6m / 11h 31m" at the bottom.
 - **Footer:** number of sessions, average and longest session (sessions under 1 minute
   are not counted here).
 

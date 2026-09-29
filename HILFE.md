@@ -87,6 +87,11 @@ Ein Klick auf den Kopf des Overlays klappt die Statistik auf bzw. zu.
 
   Der aktuelle Zeitraum ist grün hervorgehoben. Fährst du mit der Maus über einen
   Balken, steht unten der genaue Zeitraum und die Spielzeit.
+
+  Ist ein Channel-Filter aktiv (z. B. PTU), zeigen die farbigen Balken nur diesen
+  Channel. Dahinter steht grau die Gesamtzeit aller Channels, und die Skala bleibt die
+  gleiche wie bei „ALLE“ – so ist sofort sichtbar, welcher Anteil auf den Channel
+  entfällt. Beim Überfahren steht unten z. B. „PTU 6m / 11h 31m“.
 - **Fußzeile:** Anzahl Sessions, durchschnittliche und längste Session (Sessions unter
   1 Minute werden hier nicht mitgezählt).
 

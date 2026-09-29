@@ -202,7 +202,9 @@ class Overlay(QtWidgets.QWidget):
         self._channels: list[str] = []
         self._duration = 0.0
         self._summary: Optional[Summary] = None
-        self._bars: list[tuple[Bucket, float]] = []
+        self._bars: list[tuple[Bucket, float]] = []  # Zeit im gewählten Channel
+        self._totals: list[float] = []  # Zeit aller Channels je Zeitraum
+        self._filter = ""  # aktiver Channel-Filter, "" = alle
         self.on_status: Callable[[str], None] = lambda _t: None
         self.updates: Optional["UpdateManager"] = None  # von app.py gesetzt
 
@@ -245,18 +247,25 @@ class Overlay(QtWidgets.QWidget):
         self._live_channel = self._tracker.live_channel(game)
         self._channels = self._tracker.channels(game)
         channel = self._s.channel if self._s.channel in self._channels else ""
+        self._filter = channel
         sessions = self._tracker.sessions(game, channel)
+        all_sessions = self._tracker.sessions(game) if channel else sessions
         now = datetime.now()
         self._duration = self._tracker.current_duration(game, channel)
         self._summary = summarize(sessions, now)
         if self._s.tab == "total":
             # alle Jahre seit der ersten Session (mindestens das laufende)
-            first = datetime.fromtimestamp(min(s for s, _ in sessions)).year if sessions else now.year
+            first = datetime.fromtimestamp(min(s for s, _ in all_sessions)).year if all_sessions else now.year
             kind, count = "year", now.year - first + 1
         else:
             kind = self._s.tab if self._s.tab in BUCKET_COUNT else "day"
             count = BUCKET_COUNT[kind]
-        self._bars = [(b, played(sessions, b.start, b.end)) for b in buckets(kind, now.date(), count)]
+        periods = buckets(kind, now.date(), count)
+        self._bars = [(b, played(sessions, b.start, b.end)) for b in periods]
+        # Mit Channel-Filter: Gesamtzeit aller Channels als Schatten-Balken und
+        # gemeinsame Skala. Sonst füllt der größte PTU-Balken (z. B. 6 min) das
+        # Diagramm genauso wie ohne Filter 11 h und der Filter wirkt unsichtbar.
+        self._totals = [played(all_sessions, b.start, b.end) for b in periods]
 
         lay = self._layout()
         size = QtCore.QSize(W, int(lay.height))
@@ -590,8 +599,8 @@ class Overlay(QtWidgets.QWidget):
 
     def _paint_chart(self, p: QtGui.QPainter, lay: _Layout) -> None:
         chart = lay.chart
-        values = [v for _, v in self._bars]
-        vmax = max(values, default=0.0)
+        vmax = max(self._totals, default=0.0)  # Skala immer nach allen Channels
+        filtered = bool(self._filter)
         top = chart.top() + 14
         base = chart.bottom()
         span = base - top
@@ -617,7 +626,17 @@ class Overlay(QtWidgets.QWidget):
             x = chart.left() + i * slot + (slot - bw) / 2
             last = i == n - 1
             hover = i == self._hover
-            color = GREEN if last else CYAN
+            if filtered:
+                color = CHANNEL_COLORS.get(self._filter, CYAN)
+                total = self._totals[i]
+                if total > v and vmax > 0:
+                    # Schatten: Anteil der übrigen Channels
+                    th = max(2.0, total / vmax * span)
+                    ghost = QRectF(x, base - th, bw, th)
+                    p.fillRect(ghost, rgba(MUTED, 45 if hover else 28))
+                    p.fillRect(QRectF(ghost.left(), ghost.top(), ghost.width(), 1), rgba(MUTED, 110))
+            else:
+                color = GREEN if last else CYAN
             if v > 0 and vmax > 0:
                 h = max(2.0, v / vmax * span)
                 r = QRectF(x, base - h, bw, h)
@@ -639,7 +658,12 @@ class Overlay(QtWidgets.QWidget):
         s = self._summary
         if self._hover is not None and self._hover < len(self._bars):
             bucket, v = self._bars[self._hover]
-            text, color = f"{bucket.long}   ·   {fmt_hm(v)}", TEXT
+            if self._filter:
+                total = self._totals[self._hover]
+                text = f"{bucket.long}  ·  {self._filter} {fmt_hm(v)} / {fmt_hm(total)}"
+            else:
+                text = f"{bucket.long}   ·   {fmt_hm(v)}"
+            color = TEXT
         else:
             text = tr("hud.footer", count=s.sessions, average=fmt_hm(s.average), longest=fmt_hm(s.longest))
             color = MUTED

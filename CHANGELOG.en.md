@@ -5,6 +5,15 @@
 All notable changes to SC Playtime. Format based on
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [1.3.2] – 2026-09-29
+
+### Fixed
+- **Chart with channel filter:** with e.g. PTU selected the chart looked the same as
+  with ALL, because it always scaled to its own largest bar – 6 minutes of PTU filled
+  the height just like 11 hours in total. Now the scale stays that of ALL, the total is
+  shown in grey behind, and the selected channel is drawn in its color in front.
+  Hovering shows "PTU 6m / 11h 31m".
+
 ## [1.3.1] – 2026-09-29
 
 ### Added

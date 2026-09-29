@@ -207,12 +207,39 @@ class UiSmokeTest(unittest.TestCase):
             overlay = Overlay(FakeTracker(), Settings(expanded=True, language=code), lambda: None)
             image = QtGui.QImage(overlay.size(), QtGui.QImage.Format.Format_ARGB32_Premultiplied)
             overlay.render(image)
+            overlay._hover = len(overlay._bars) - 1  # Fußzeile mit Hover-Text
+            overlay.render(image)
             menu = QtWidgets.QMenu()
             overlay.populate_menu(menu, tray=True)
             texts = [a.text() for a in menu.actions()]
             self.assertIn(i18n.tr("menu.quit"), texts)
             overlay.deleteLater()
         i18n.set_language("de")
+
+    def test_channel_filter_keeps_common_scale(self) -> None:
+        """PTU-Filter: Balken nur PTU, Skala/Schatten aber nach allen Channels."""
+        from PySide6 import QtGui
+
+        from sc_playtime.settings import Settings
+        from sc_playtime.ui import Overlay
+
+        midnight = datetime.combine(date.today(), datetime.min.time()).timestamp()
+        live = (midnight + 3600, midnight + 3 * 3600)  # heute 2 h LIVE
+        ptu = (midnight + 3 * 3600, midnight + 3 * 3600 + 360)  # heute 6 min PTU
+
+        class FakeTracker:
+            def running(self): return []
+            def live_channel(self, g): return None
+            def channels(self, g): return ["LIVE", "PTU"]
+            def sessions(self, g, c=""): return {"": [live, ptu], "LIVE": [live], "PTU": [ptu]}[c]
+            def current_duration(self, g, c): return 0.0
+
+        overlay = Overlay(FakeTracker(), Settings(expanded=True, channel="PTU"), lambda: None)
+        (_, today_ptu), today_all = overlay._bars[-1], overlay._totals[-1]
+        self.assertEqual((today_ptu, today_all), (360.0, 2 * 3600 + 360.0))
+        overlay._hover = len(overlay._bars) - 1
+        overlay.render(QtGui.QImage(overlay.size(), QtGui.QImage.Format.Format_ARGB32_Premultiplied))
+        overlay.deleteLater()
 
 
 class UpdaterTest(unittest.TestCase):

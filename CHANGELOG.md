@@ -5,6 +5,15 @@
 Alle nennenswerten Änderungen an SC Playtime. Format angelehnt an
 [Keep a Changelog](https://keepachangelog.com/de/1.1.0/).
 
+## [1.3.2] – 2026-09-29
+
+### Behoben
+- **Diagramm mit Channel-Filter:** Mit z. B. PTU sah das Diagramm genauso aus wie mit
+  ALLE, weil es sich immer auf den eigenen größten Balken skalierte – 6 Minuten PTU
+  füllten die Höhe genauso wie 11 Stunden gesamt. Jetzt bleibt die Skala die von ALLE,
+  die Gesamtzeit steht grau dahinter, der gewählte Channel wird in seiner Farbe davor
+  gezeichnet. Beim Überfahren: „PTU 6m / 11h 31m“.
+
 ## [1.3.1] – 2026-09-29
 
 ### Neu
