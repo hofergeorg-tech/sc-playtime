@@ -3,6 +3,8 @@
 Mini-Overlay im Star-Citizen-HUD-Stil, das die Spielzeit erfasst. Eigenständiges Tool,
 kein Bezug zu anderen Projekten.
 
+📖 **[Hilfe – alle Funktionen erklärt](HILFE.md)** · 📝 **[Changelog](CHANGELOG.md)**
+
 - erkennt `StarCitizen.exe` automatisch (alle 2 s, nur Prozessliste lesen)
 - **Channel aus dem Installationsordner**: `…\StarCitizen\LIVE\Bin64\StarCitizen.exe` → LIVE,
   ebenso PTU, EPTU, HOTFIX, TECH-PREVIEW — getrennt auswertbar oder zusammen („ALLE“)

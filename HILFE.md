@@ -1,0 +1,204 @@
+# SC Playtime – Hilfe
+
+SC Playtime ist ein kleines Overlay, das mitzählt, wie lange du Star Citizen (oder andere
+Spiele) spielst. Es sitzt als schmales Panel über dem Spiel und zeigt die laufende
+Session sowie deine Statistik.
+
+- [Installation und Start](#installation-und-start)
+- [Das Overlay](#das-overlay)
+- [Bedienung mit der Maus](#bedienung-mit-der-maus)
+- [Das Menü](#das-menü)
+- [Farben](#farben)
+- [Mehrere Spiele](#mehrere-spiele)
+- [Channels (LIVE, PTU, …)](#channels-live-ptu-)
+- [So wird gezählt](#so-wird-gezählt)
+- [Deine Daten](#deine-daten)
+- [Häufige Fragen](#häufige-fragen)
+
+---
+
+## Installation und Start
+
+**Mit der EXE:** `SC-Playtime.exe` starten. Keine Installation nötig; das Tray-Icon (Uhr
+im Rahmen) erscheint unten rechts in der Taskleiste.
+
+**Aus dem Quellcode:**
+
+```powershell
+python -m venv .venv
+.venv\Scripts\pip install -r requirements.txt
+.venv\Scripts\pythonw.exe run.pyw
+```
+
+Es läuft immer nur eine Instanz. Ein zweiter Start (z. B. Autostart plus manueller
+Start) beendet sich sofort wieder, damit nichts doppelt gezählt wird.
+
+> **Wichtig:** Star Citizen muss im Modus **„Fenster (randlos)“** laufen. Im echten
+> Vollbild kann Windows kein Overlay darüber zeichnen – das gilt für alle Overlays.
+
+## Das Overlay
+
+### Kompakte Ansicht
+
+| Bereich | Bedeutung |
+| --- | --- |
+| Punkt oben links | pulsiert grün, solange das Spiel läuft; grau, wenn offline |
+| Spielname | das angezeigte Spiel, daneben der Channel (z. B. **LIVE**) |
+| **IM SPIEL** / **OFFLINE** | Status oben rechts |
+| große Uhr | Dauer der laufenden Session; offline die Dauer der letzten Session |
+| HEUTE / WOCHE | heute gespielt bzw. seit Montag dieser Woche |
+
+### Aufgeklappte Statistik
+
+Ein Klick auf den Kopf des Overlays klappt die Statistik auf bzw. zu.
+
+- **Channel-Filter** (ALLE, LIVE, PTU, …): zeigt die Statistik nur für einen Channel oder
+  für alle zusammen. Erscheint, sobald Sessions mit Channel erfasst wurden.
+- **Kacheln:**
+
+  | Kachel | Bedeutung |
+  | --- | --- |
+  | HEUTE | Spielzeit seit Mitternacht |
+  | WOCHE | seit Montag 0:00 Uhr |
+  | MONAT | seit dem 1. des Monats |
+  | JAHR | seit dem 1. Januar |
+  | GESAMT | alles, was je erfasst wurde |
+  | SERIE | Tage am Stück mit mindestens 1 Minute Spielzeit. Heute noch nicht gespielt unterbricht die Serie nicht. |
+
+- **Diagramm** mit den Reitern:
+
+  | Reiter | zeigt |
+  | --- | --- |
+  | TAG | die letzten 14 Tage |
+  | WOCHE | die letzten 12 Kalenderwochen |
+  | MONAT | die letzten 12 Monate |
+  | JAHR | die letzten 5 Jahre |
+  | GESAMT | jedes Jahr seit deiner ersten Session |
+
+  Der aktuelle Zeitraum ist grün hervorgehoben. Fährst du mit der Maus über einen
+  Balken, steht unten der genaue Zeitraum und die Spielzeit.
+- **Fußzeile:** Anzahl Sessions, durchschnittliche und längste Session (Sessions unter
+  1 Minute werden hier nicht mitgezählt).
+
+## Bedienung mit der Maus
+
+| Aktion | Wirkung |
+| --- | --- |
+| Klick auf den Kopf | Statistik auf-/zuklappen |
+| Ziehen mit gedrückter linker Maustaste | Overlay verschieben (außer „Position sperren“ ist an) |
+| Klick auf einen Channel-Chip | Channel-Filter setzen |
+| Klick auf einen Reiter | Zeitraum des Diagramms wechseln |
+| Maus über einem Balken | genaue Werte in der Fußzeile |
+| Rechtsklick aufs Overlay | Menü |
+| Linksklick aufs Tray-Icon | Overlay ein-/ausblenden |
+| Rechtsklick aufs Tray-Icon | Menü (auch wenn das Overlay ausgeblendet ist) |
+
+Position, aufgeklappter Zustand, gewählter Reiter und Filter werden gespeichert und beim
+nächsten Start wiederhergestellt.
+
+## Das Menü
+
+| Eintrag | Funktion |
+| --- | --- |
+| Overlay ein-/ausblenden | nur im Tray-Menü |
+| Statistik aufgeklappt | wie Klick auf den Kopf |
+| Spiel | angezeigtes Spiel wählen, Spiele hinzufügen oder entfernen |
+| HINTERGRUND (Schieberegler) | Deckkraft nur des dunklen Hintergrunds; Schrift bleibt voll sichtbar |
+| DECKKRAFT GESAMT (Schieberegler) | Deckkraft des ganzen Overlays (20–100 %) |
+| Farben | siehe [Farben](#farben) |
+| Position sperren | Overlay lässt sich nicht mehr verschieben |
+| Klicks durchlassen | Mausklicks gehen durch das Overlay ins Spiel. Ausschalten nur noch über das **Tray-Icon** möglich. |
+| Nur anzeigen, wenn ein Spiel läuft | Overlay blendet sich offline automatisch aus |
+| Mit Windows starten | Autostart beim Anmelden (ohne Admin-Rechte) |
+| Datenordner öffnen | öffnet den Ordner mit Datenbank und Einstellungen |
+| Beenden | Overlay schließen; die laufende Session wird vorher gesichert |
+
+## Farben
+
+Unter **Menü → Farben** gibt es zwei Bereiche. Jeder hat Vorlagen sowie
+„Hintergrundfarbe wählen …“ und „Schriftfarbe wählen …“ für eigene Farben.
+
+**Statistik-Kacheln (im Spiel)** – offline sind die Kacheln immer dunkel im HUD-Stil.
+Sobald das Spiel läuft, werden sie eingefärbt:
+
+- Grün / Dunkel (Standard)
+- Cyan / Dunkel
+- Bernstein / Dunkel
+- Nicht einfärben (HUD) – Kacheln bleiben auch im Spiel dunkel
+
+**Aktiver Channel** – der ausgewählte Channel-Chip (im Kopf und im Filter):
+
+- Automatisch – Farbe des Channels (LIVE grün, PTU gelb, …) mit dunkler Schrift
+- Dunkelgrün / Weiß, Schwarz / Grün, Dunkelblau / Weiß, Weiß / Schwarz
+
+Tipp: Für gute Lesbarkeit helle Hintergründe mit dunkler Schrift kombinieren und
+umgekehrt.
+
+## Mehrere Spiele
+
+Standardmäßig wird `StarCitizen.exe` verfolgt. Weitere Spiele:
+
+1. Rechtsklick → **Spiel → Spiel hinzufügen …**
+2. Die EXE des Spiels auswählen.
+3. Einen Anzeigenamen vergeben.
+
+Erkannt wird das Spiel am EXE-Namen. Läuft ein Spiel, zeigt das Overlay automatisch
+dieses an; laufen mehrere, das im Menü gewählte. Über **Spiel entfernen** wird ein
+Spiel nicht mehr verfolgt – seine bisherigen Sessions bleiben gespeichert.
+
+## Channels (LIVE, PTU, …)
+
+Der Channel wird aus dem Installationsordner gelesen:
+
+```
+…\StarCitizen\LIVE\Bin64\StarCitizen.exe   →  LIVE
+…\StarCitizen\PTU\Bin64\StarCitizen.exe    →  PTU
+```
+
+Ebenso EPTU, HOTFIX und TECH-PREVIEW. Jede Session merkt sich ihren Channel, so lässt
+sich die Statistik getrennt oder gesamt („ALLE“) anzeigen.
+
+## So wird gezählt
+
+- Alle 2 Sekunden wird die Prozessliste gelesen. Es wird nur **gelesen** – nichts wird
+  ins Spiel eingeschleust.
+- Startest du das Overlay erst, wenn das Spiel schon läuft, zählt die Session trotzdem
+  ab dem echten Start des Spiels.
+- Das Session-Ende wird alle 30 Sekunden gespeichert. Stürzt der PC ab, fehlen
+  höchstens diese 30 Sekunden.
+- Sessions über Mitternacht (oder über Wochen-/Monatsgrenzen) werden anteilig auf die
+  Zeiträume verteilt.
+
+## Deine Daten
+
+Alles liegt lokal unter `%APPDATA%\SC-Playtime\` (Menü → „Datenordner öffnen“):
+
+| Datei | Inhalt |
+| --- | --- |
+| `playtime.db` | SQLite-Datenbank mit allen Sessions (Spiel, Channel, Start, Ende) |
+| `settings.json` | Position, Transparenz, Farben, Spieleliste, … |
+
+Es werden keine Daten ins Internet geschickt. Zum Sichern oder Umziehen einfach den
+Ordner kopieren. Zum Zurücksetzen der Einstellungen `settings.json` bei beendetem
+Overlay löschen.
+
+## Häufige Fragen
+
+**Das Overlay ist im Spiel nicht zu sehen.**
+Star Citizen auf „Fenster (randlos)“ stellen. Prüfen, ob das Overlay über das Tray-Icon
+ausgeblendet wurde.
+
+**Ich kann das Overlay nicht mehr anklicken.**
+„Klicks durchlassen“ ist an. Rechtsklick aufs Tray-Icon und den Haken entfernen.
+
+**Das Overlay ist verschwunden.**
+Linksklick aufs Tray-Icon blendet es wieder ein. Ist „Nur anzeigen, wenn ein Spiel
+läuft“ aktiv, erscheint es offline nicht.
+
+**Der Autostart funktioniert nicht mehr.**
+Der Eintrag zeigt auf den Ort der EXE bzw. von `run.pyw`. Nach dem Verschieben des
+Ordners „Mit Windows starten“ einmal aus- und wieder einschalten.
+
+**Stört das den Anti-Cheat?**
+SC Playtime liest nur die Prozessliste und die Startzeit des Spiels über normale
+Windows-Funktionen, so wie der Task-Manager. Es greift nicht auf das Spiel zu.
