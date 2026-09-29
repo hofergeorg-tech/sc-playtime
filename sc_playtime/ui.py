@@ -14,14 +14,17 @@ import time
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
-from typing import Callable, Optional
+from typing import TYPE_CHECKING, Callable, Optional
 
 from PySide6 import QtCore, QtGui, QtWidgets
 
-from . import autostart
+from . import __version__, autostart, docs
 from .settings import Settings, data_dir
 from .stats import BUCKET_COUNT, Bucket, Summary, buckets, fmt_clock, fmt_hm, played, summarize
 from .tracker import Tracker
+
+if TYPE_CHECKING:
+    from .update_ui import UpdateManager
 
 Qt = QtCore.Qt
 QRectF = QtCore.QRectF
@@ -174,6 +177,7 @@ class Overlay(QtWidgets.QWidget):
         self._summary: Optional[Summary] = None
         self._bars: list[tuple[Bucket, float]] = []
         self.on_status: Callable[[str], None] = lambda _t: None
+        self.updates: Optional["UpdateManager"] = None  # von app.py gesetzt
 
         self.setWindowTitle("SC Playtime")
         self.setWindowIcon(app_icon())
@@ -678,8 +682,10 @@ class Overlay(QtWidgets.QWidget):
 
     def populate_menu(self, menu: QtWidgets.QMenu, tray: bool = False) -> None:
         s = self._s
-        title = menu.addAction("SC PLAYTIME")
+        title = menu.addAction(f"SC PLAYTIME  {__version__}")
         title.setEnabled(False)
+        if self.updates is not None:
+            self.updates.add_install_action(menu)
         if tray:
             menu.addAction("Overlay einblenden" if self._user_hidden else "Overlay ausblenden", self.toggle_hidden)
         self._check(menu, "Statistik aufgeklappt", s.expanded, self.set_expanded)
@@ -712,6 +718,11 @@ class Overlay(QtWidgets.QWidget):
         self._check(menu, "Nur anzeigen, wenn ein Spiel läuft", s.hide_when_offline,
                     lambda on: self._set("hide_when_offline", on))
         self._check(menu, "Mit Windows starten", autostart.is_enabled(), autostart.set_enabled)
+        menu.addSeparator()
+        menu.addAction("Hilfe …", docs.show_help)
+        menu.addAction("Was ist neu? …", docs.show_changelog)
+        if self.updates is not None:
+            self.updates.populate_menu(menu)
         menu.addSeparator()
         menu.addAction("Datenordner öffnen", lambda: os.startfile(str(data_dir())))
         menu.addAction("Beenden", QtWidgets.QApplication.quit)

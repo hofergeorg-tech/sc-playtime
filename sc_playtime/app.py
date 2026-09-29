@@ -6,10 +6,13 @@ import sys
 
 from PySide6 import QtCore, QtGui, QtWidgets
 
+from . import __version__, docs
 from .settings import Settings, data_dir
 from .store import Store
 from .tracker import Tracker
 from .ui import MENU_QSS, Overlay, app_icon
+from .update_ui import UpdateManager
+from .updater import is_newer
 
 POLL_MS = 2000
 
@@ -55,6 +58,20 @@ def main() -> int:
     )
     overlay.on_status = tray.setToolTip
     tray.show()
+
+    updates = UpdateManager(
+        settings, lambda: settings.save(settings_path),
+        lambda title, text: tray.showMessage(title, text, app_icon(), 15000), app,
+    )
+    overlay.updates = updates
+    tray.messageClicked.connect(updates.install)
+
+    # nach einem Update einmal zeigen, was neu ist (nicht beim allerersten Start)
+    if settings.seen_version != __version__:
+        if settings.seen_version and is_newer(__version__, settings.seen_version):
+            QtCore.QTimer.singleShot(1500, docs.show_changelog)
+        settings.seen_version = __version__
+        settings.save(settings_path)
 
     def poll() -> None:
         tracker.poll()

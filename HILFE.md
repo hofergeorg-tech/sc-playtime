@@ -12,6 +12,7 @@ Session sowie deine Statistik.
 - [Mehrere Spiele](#mehrere-spiele)
 - [Channels (LIVE, PTU, …)](#channels-live-ptu-)
 - [So wird gezählt](#so-wird-gezählt)
+- [Updates](#updates)
 - [Deine Daten](#deine-daten)
 - [Häufige Fragen](#häufige-fragen)
 
@@ -19,8 +20,11 @@ Session sowie deine Statistik.
 
 ## Installation und Start
 
-**Mit der EXE:** `SC-Playtime.exe` starten. Keine Installation nötig; das Tray-Icon (Uhr
-im Rahmen) erscheint unten rechts in der Taskleiste.
+**Mit der EXE:** `SC-Playtime.exe` von der
+[Release-Seite](https://github.com/hofergeorg-tech/sc-playtime/releases/latest) laden,
+in einen eigenen Ordner legen (z. B. `Dokumente\SC-Playtime`) und starten. Keine
+Installation nötig; das Tray-Icon (Uhr im Rahmen) erscheint unten rechts in der
+Taskleiste.
 
 **Aus dem Quellcode:**
 
@@ -110,6 +114,11 @@ nächsten Start wiederhergestellt.
 | Klicks durchlassen | Mausklicks gehen durch das Overlay ins Spiel. Ausschalten nur noch über das **Tray-Icon** möglich. |
 | Nur anzeigen, wenn ein Spiel läuft | Overlay blendet sich offline automatisch aus |
 | Mit Windows starten | Autostart beim Anmelden (ohne Admin-Rechte) |
+| Hilfe … | diese Hilfe |
+| Was ist neu? … | Changelog mit allen Änderungen je Version |
+| Nach Updates suchen | sofort bei GitHub nachsehen, siehe [Updates](#updates) |
+| Automatisch nach Updates suchen | beim Start und alle 12 Stunden prüfen (Standard: an) |
+| ⬆ Update auf … installieren | erscheint ganz oben, wenn eine neue Version bereitliegt |
 | Datenordner öffnen | öffnet den Ordner mit Datenbank und Einstellungen |
 | Beenden | Overlay schließen; die laufende Session wird vorher gesichert |
 
@@ -169,6 +178,24 @@ sich die Statistik getrennt oder gesamt („ALLE“) anzeigen.
 - Sessions über Mitternacht (oder über Wochen-/Monatsgrenzen) werden anteilig auf die
   Zeiträume verteilt.
 
+## Updates
+
+Die aktuelle Version steht oben im Menü (z. B. „SC PLAYTIME 1.2.0“).
+
+- **Automatisch:** Ist „Automatisch nach Updates suchen“ an, schaut SC Playtime kurz nach
+  dem Start und danach alle 12 Stunden auf GitHub nach einer neuen Version. Gibt es eine,
+  erscheint eine Meldung am Tray-Icon und oben im Menü der Eintrag
+  **„⬆ Update auf … installieren“**.
+- **Von Hand:** Menü → „Nach Updates suchen“.
+- **Installieren:** Nach der Bestätigung wird die neue EXE heruntergeladen. Das Overlay
+  speichert die laufende Session, beendet sich, ersetzt die EXE und startet neu. Danach
+  wird einmal „Was ist neu?“ angezeigt. Einstellungen und Spielzeiten bleiben erhalten.
+- Läuft SC Playtime aus dem Quellcode statt als EXE, öffnet „Installieren“ stattdessen
+  die Release-Seite im Browser.
+
+Alle Versionen gibt es auch unter
+<https://github.com/hofergeorg-tech/sc-playtime/releases>.
+
 ## Deine Daten
 
 Alles liegt lokal unter `%APPDATA%\SC-Playtime\` (Menü → „Datenordner öffnen“):
@@ -178,7 +205,9 @@ Alles liegt lokal unter `%APPDATA%\SC-Playtime\` (Menü → „Datenordner öffn
 | `playtime.db` | SQLite-Datenbank mit allen Sessions (Spiel, Channel, Start, Ende) |
 | `settings.json` | Position, Transparenz, Farben, Spieleliste, … |
 
-Es werden keine Daten ins Internet geschickt. Zum Sichern oder Umziehen einfach den
+Deine Spielzeiten und Einstellungen verlassen nie deinen PC. Die einzige Verbindung ins
+Internet ist die Update-Prüfung: Sie ruft nur die öffentliche Versionsinfo bei GitHub ab
+und lässt sich im Menü abschalten. Zum Sichern oder Umziehen einfach den
 Ordner kopieren. Zum Zurücksetzen der Einstellungen `settings.json` bei beendetem
 Overlay löschen.
 
@@ -198,6 +227,12 @@ läuft“ aktiv, erscheint es offline nicht.
 **Der Autostart funktioniert nicht mehr.**
 Der Eintrag zeigt auf den Ort der EXE bzw. von `run.pyw`. Nach dem Verschieben des
 Ordners „Mit Windows starten“ einmal aus- und wieder einschalten.
+
+**Das Update schlägt fehl.**
+Prüfen, ob Internet da ist, und es mit „Nach Updates suchen“ erneut versuchen. Liegt
+die EXE in einem geschützten Ordner (z. B. `C:\Programme`), kann sie sich nicht selbst
+ersetzen – dann die neue Version von der Release-Seite laden oder die EXE in einen
+eigenen Ordner legen.
 
 **Stört das den Anti-Cheat?**
 SC Playtime liest nur die Prozessliste und die Startzeit des Spiels über normale

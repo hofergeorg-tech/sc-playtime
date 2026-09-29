@@ -5,6 +5,7 @@
 
 from __future__ import annotations
 
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -20,6 +21,7 @@ EXCLUDES = [
     "PySide6.Qt3DCore", "PySide6.QtCharts", "PySide6.QtDataVisualization",
     "PySide6.QtOpenGL", "PySide6.QtOpenGLWidgets", "tkinter", "unittest",
 ]
+DOCS = ["HILFE.md", "CHANGELOG.md"]
 
 
 def make_icon(path: Path) -> None:
@@ -51,6 +53,8 @@ def main() -> None:
     ]
     for mod in EXCLUDES:
         cmd += ["--exclude-module", mod]
+    for doc in DOCS:  # für Menü → Hilfe / Was ist neu?
+        cmd += ["--add-data", f"{ROOT / doc}{os.pathsep}."]
     cmd.append(str(ROOT / "run.pyw"))
     subprocess.run(cmd, check=True)
     print(f"\nFertig: {ROOT / 'dist' / 'SC-Playtime.exe'}")

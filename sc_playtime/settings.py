@@ -35,6 +35,8 @@ class Settings:
     chip_fg: str = ""  # aktiver Channel-Chip: Schrift (#rrggbb), "" = dunkel
     tile_bg: str = "#64ffb4"  # Statistik-Kacheln im Spiel: Hintergrund, "" = nicht einfärben
     tile_fg: str = "#04141a"  # Statistik-Kacheln im Spiel: Schrift, "" = hell
+    auto_update: bool = True  # beim Start und alle 12 h nach Updates suchen
+    seen_version: str = ""  # zuletzt gestartete Version → "Was ist neu?" nach Update
     locked: bool = False
     click_through: bool = False
     hide_when_offline: bool = False

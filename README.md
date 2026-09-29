@@ -16,6 +16,8 @@ kein Bezug zu anderen Projekten.
 - Farben: Statistik-Kacheln werden im Spiel eingefärbt (Standard Grün mit dunkler Schrift),
   Kacheln und aktiver Channel-Chip per Vorlage oder freier Farbwahl einstellbar
 - Autostart mit Windows (HKCU\…\Run, kein Admin), Tray-Icon, Einzelinstanz
+- Update-Prüfung über GitHub Releases mit Selbst-Update der EXE; Hilfe und
+  „Was ist neu?“ direkt im Menü
 
 ## Start
 

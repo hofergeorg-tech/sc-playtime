@@ -3,6 +3,19 @@
 Alle nennenswerten Änderungen an SC Playtime. Format angelehnt an
 [Keep a Changelog](https://keepachangelog.com/de/1.1.0/).
 
+## [1.2.0] – 2026-09-29
+
+### Neu
+- **Update-Funktion:** prüft beim Start und alle 12 Stunden, ob es auf GitHub eine
+  neue Version gibt. Ist eine da, erscheint eine Meldung am Tray-Icon und oben im Menü
+  „Update installieren“. Die EXE lädt die neue Version herunter, ersetzt sich selbst und
+  startet neu – die laufende Session wird vorher gespeichert.
+- Menü: **Nach Updates suchen** und **Automatisch nach Updates suchen** (abschaltbar).
+- Menü: **Hilfe** und **Was ist neu?** öffnen Hilfe und Changelog direkt im Programm,
+  auch ohne Internet.
+- Nach einem Update wird „Was ist neu?“ einmal automatisch angezeigt.
+- Versionsnummer im Menütitel und in den Fenstern.
+
 ## [1.1.0] – 2026-09-29
 
 ### Neu

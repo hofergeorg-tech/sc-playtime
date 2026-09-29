@@ -9,6 +9,7 @@ from sc_playtime.process import channel_from_path  # noqa: E402
 from sc_playtime.stats import buckets, fmt_clock, fmt_hm, played, summarize  # noqa: E402
 from sc_playtime.store import Store  # noqa: E402
 from sc_playtime.tracker import Game, Tracker, sort_channels  # noqa: E402
+from sc_playtime.updater import install_script, is_newer  # noqa: E402
 
 
 def ts(*a: int) -> float:
@@ -102,6 +103,20 @@ class TrackerTest(unittest.TestCase):
         second.poll(now=700.0)
         self.assertEqual(len(store.all()), 1)
         self.assertEqual(second.sessions("Star Citizen"), [(500.0, 700.0)])
+
+
+class UpdaterTest(unittest.TestCase):
+    def test_version_compare(self) -> None:
+        self.assertTrue(is_newer("v1.10.0", "1.9.3"))
+        self.assertTrue(is_newer("1.2.1", "1.2"))
+        self.assertFalse(is_newer("1.2.0", "1.2.0"))
+        self.assertFalse(is_newer("kaputt", "1.0.0"))
+
+    def test_install_script_replaces_and_restarts(self) -> None:
+        script = install_script(Path(r"C:\T\u\SC-Playtime.exe"), Path(r"D:\Apps\SC-Playtime.exe"))
+        self.assertIn(r'move /Y "C:\T\u\SC-Playtime.exe" "D:\Apps\SC-Playtime.exe"', script)
+        self.assertIn(r'start "" "D:\Apps\SC-Playtime.exe"', script)
+        self.assertNotIn("start", install_script(Path("a"), Path("b"), restart=False))
 
 
 if __name__ == "__main__":
