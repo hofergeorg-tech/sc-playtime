@@ -9,6 +9,7 @@ from typing import Optional
 from PySide6 import QtCore, QtGui, QtWidgets
 
 from . import __version__
+from .i18n import doc_file, tr
 
 DOC_QSS = """
 QDialog { background: #08111b; }
@@ -25,7 +26,7 @@ QScrollBar::add-line, QScrollBar::sub-line { height: 0; }
 # Tabellenköpfe und Code passend zum HUD einfärben (Linkfarbe kommt aus der Palette)
 _DOC_CSS = "th { color: #5fd0ff; } code { color: #64ffb4; }"
 
-_open: dict[str, "DocDialog"] = {}
+_open: dict[str, "DocDialog"] = {}  # Fenstertitel → offenes Fenster
 
 
 def resource(name: str) -> Path:
@@ -48,7 +49,7 @@ class DocDialog(QtWidgets.QDialog):
         view.setMarkdown(markdown)
         _color_links(view.document(), QtGui.QColor("#5fd0ff"))
         self._view = view
-        close = QtWidgets.QPushButton("Schließen")
+        close = QtWidgets.QPushButton(tr("doc.close"))
         close.clicked.connect(self.close)
         lay = QtWidgets.QVBoxLayout(self)
         lay.addWidget(view)
@@ -101,7 +102,7 @@ def show_doc(file: str, title: str, markdown: Optional[str] = None) -> None:
             try:
                 markdown = resource(file).read_text(encoding="utf-8")
             except OSError:
-                markdown = f"*{file} nicht gefunden.*"
+                markdown = tr("doc.missing", file=file)
         dlg = DocDialog(title, markdown)
         dlg.setAttribute(QtCore.Qt.WidgetAttribute.WA_DeleteOnClose)
         dlg.destroyed.connect(lambda _o=None, t=title: _open.pop(t, None))
@@ -112,8 +113,8 @@ def show_doc(file: str, title: str, markdown: Optional[str] = None) -> None:
 
 
 def show_help() -> None:
-    show_doc("HILFE.md", "Hilfe")
+    show_doc(doc_file("help"), tr("doc.help"))
 
 
 def show_changelog() -> None:
-    show_doc("CHANGELOG.md", "Was ist neu?")
+    show_doc(doc_file("changelog"), tr("doc.changelog"))

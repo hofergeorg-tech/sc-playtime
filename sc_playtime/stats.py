@@ -10,10 +10,10 @@ from dataclasses import dataclass
 from datetime import date, datetime, timedelta
 from typing import Sequence
 
+from .i18n import tr, tr_list
+
 Session = tuple[float, float]
 
-WEEKDAYS = ("MO", "DI", "MI", "DO", "FR", "SA", "SO")
-MONTHS = ("JAN", "FEB", "MÄR", "APR", "MAI", "JUN", "JUL", "AUG", "SEP", "OKT", "NOV", "DEZ")
 BUCKET_COUNT = {"day": 14, "week": 12, "month": 12, "year": 5}
 # Tage mit weniger Spielzeit zählen nicht zur Serie (kurz Launcher-Test o. ä.)
 STREAK_MIN_S = 60.0
@@ -43,22 +43,23 @@ class Bucket:
 def buckets(kind: str, today: date, n: int) -> list[Bucket]:
     """Die letzten ``n`` Zeiträume der Art ``kind``, ältester zuerst."""
     out: list[Bucket] = []
+    weekdays, months = tr_list("weekdays"), tr_list("months")
+    fmt_date, fmt_short = tr("fmt.date"), tr("fmt.date_short")
     for i in range(n - 1, -1, -1):
         if kind == "day":
             d = today - timedelta(days=i)
             nxt = d + timedelta(days=1)
-            out.append(Bucket(str(d.day), f"{WEEKDAYS[d.weekday()]} {d:%d.%m.%Y}", _ts(d), _ts(nxt)))
+            out.append(Bucket(str(d.day), f"{weekdays[d.weekday()]} {d.strftime(fmt_date)}", _ts(d), _ts(nxt)))
         elif kind == "week":
             mon = today - timedelta(days=today.weekday(), weeks=i)
             sun = mon + timedelta(days=6)
             kw = mon.isocalendar()[1]
-            out.append(
-                Bucket(str(kw), f"KW {kw} · {mon:%d.%m.}–{sun:%d.%m.%Y}", _ts(mon), _ts(sun + timedelta(days=1)))
-            )
+            long = tr("week.long", week=kw, start=mon.strftime(fmt_short), end=sun.strftime(fmt_date))
+            out.append(Bucket(str(kw), long, _ts(mon), _ts(sun + timedelta(days=1))))
         elif kind == "month":
             y, m = _add_months(today.year, today.month, -i)
             y2, m2 = _add_months(y, m, 1)
-            out.append(Bucket(MONTHS[m - 1], f"{MONTHS[m - 1]} {y}", _ts(date(y, m, 1)), _ts(date(y2, m2, 1))))
+            out.append(Bucket(months[m - 1], f"{months[m - 1]} {y}", _ts(date(y, m, 1)), _ts(date(y2, m2, 1))))
         elif kind == "year":
             y = today.year - i
             out.append(Bucket(str(y), str(y), _ts(date(y, 1, 1)), _ts(date(y + 1, 1, 1))))

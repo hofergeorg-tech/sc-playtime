@@ -1,3 +1,4 @@
+import os
 import sys
 import unittest
 from datetime import date, datetime
@@ -5,6 +6,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
+from sc_playtime import i18n, process  # noqa: E402
 from sc_playtime.process import channel_from_path  # noqa: E402
 from sc_playtime.stats import buckets, fmt_clock, fmt_hm, played, summarize  # noqa: E402
 from sc_playtime.store import Store  # noqa: E402
@@ -103,6 +105,114 @@ class TrackerTest(unittest.TestCase):
         second.poll(now=700.0)
         self.assertEqual(len(store.all()), 1)
         self.assertEqual(second.sessions("Star Citizen"), [(500.0, 700.0)])
+
+
+class I18nTest(unittest.TestCase):
+    def tearDown(self) -> None:
+        i18n.set_language("de")
+
+    def test_all_languages_have_all_keys_and_flags(self) -> None:
+        root = Path(__file__).resolve().parent.parent
+        for code in i18n.LANGUAGES:
+            self.assertEqual(set(i18n.STRINGS[code]), set(i18n.STRINGS["de"]), code)
+            self.assertTrue((root / "assets" / "flags" / f"{code}.svg").exists(), code)
+            for doc in i18n.DOCS[code].values():
+                self.assertTrue((root / doc).exists(), doc)
+
+    def test_placeholders_match(self) -> None:
+        import string
+
+        fields = lambda s: {f for _, f, _, _ in string.Formatter().parse(s) if f}  # noqa: E731
+        for code in i18n.LANGUAGES:
+            for key, text in i18n.STRINGS[code].items():
+                self.assertEqual(fields(text), fields(i18n.STRINGS["de"][key]), f"{code}:{key}")
+
+    def test_switch_changes_labels(self) -> None:
+        i18n.set_language("en")
+        self.assertEqual([b.short for b in buckets("month", date(2026, 5, 10), 2)], ["APR", "MAY"])
+        self.assertEqual(i18n.tr("upd.none", version="1.0"), "You have the latest version (1.0).")
+        i18n.set_language("xx")  # unbekannt → Systemsprache, nie ein Absturz
+        self.assertIn(i18n.language(), i18n.LANGUAGES)
+
+
+class LinuxProcessTest(unittest.TestCase):
+    def test_parsing_helpers(self) -> None:
+        wine = b"C:\\Program Files\\Roberts Space Industries\\StarCitizen\\PTU\\Bin64\\StarCitizen.exe\0-arg\0"
+        self.assertEqual(process.basename_any(process.argv0(wine)), "StarCitizen.exe")
+        self.assertEqual(channel_from_path(process.argv0(wine)), "PTU")
+        self.assertEqual(process.basename_any("/usr/games/foo"), "foo")
+        stat = "1234 (Star Citizen (x)) S " + " ".join(["0"] * 18) + " 500 0 0"
+        self.assertEqual(process.start_from_stat(stat, 1000.0, 100.0), 1005.0)
+        self.assertIsNone(process.start_from_stat("kaputt", 0, 100))
+
+    @unittest.skipUnless(sys.platform.startswith("linux"), "nur unter Linux")
+    def test_finds_real_process(self) -> None:
+        import subprocess
+        import time
+
+        proc = subprocess.Popen(["sleep", "30"])
+        try:
+            found = process.find_processes(["sleep"])
+            self.assertIn("sleep", found)
+            start = process.process_start_time(found["sleep"])
+            self.assertIsNotNone(start)
+            self.assertLess(abs(start - time.time()), 30)
+        finally:
+            proc.kill()
+
+    @unittest.skipUnless(sys.platform.startswith("linux"), "nur unter Linux")
+    def test_autostart_desktop_file(self) -> None:
+        import tempfile
+
+        from sc_playtime import autostart
+
+        with tempfile.TemporaryDirectory() as tmp:
+            os.environ["XDG_CONFIG_HOME"] = tmp
+            try:
+                autostart.set_enabled(True)
+                self.assertTrue(autostart.is_enabled())
+                entry = (Path(tmp) / "autostart" / "sc-playtime.desktop").read_text()
+                self.assertIn("Exec=", entry)
+                autostart.set_enabled(False)
+                self.assertFalse(autostart.is_enabled())
+            finally:
+                del os.environ["XDG_CONFIG_HOME"]
+
+
+class UiSmokeTest(unittest.TestCase):
+    """Overlay und Menü in jeder Sprache aufbauen, ohne Bildschirm (offscreen)."""
+
+    @classmethod
+    def setUpClass(cls) -> None:
+        os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+        from PySide6 import QtWidgets
+
+        cls.app = QtWidgets.QApplication.instance() or QtWidgets.QApplication([])
+
+    def test_overlay_and_menu_in_all_languages(self) -> None:
+        from PySide6 import QtGui, QtWidgets
+
+        from sc_playtime.settings import Settings
+        from sc_playtime.ui import Overlay
+
+        class FakeTracker:
+            def running(self): return ["Star Citizen"]
+            def live_channel(self, g): return "LIVE"
+            def channels(self, g): return ["LIVE", "PTU"]
+            def sessions(self, g, c): return [(ts(2026, 9, 28, 18), ts(2026, 9, 28, 19))]
+            def current_duration(self, g, c): return 100.0
+
+        for code in i18n.LANGUAGES:
+            i18n.set_language(code)
+            overlay = Overlay(FakeTracker(), Settings(expanded=True, language=code), lambda: None)
+            image = QtGui.QImage(overlay.size(), QtGui.QImage.Format.Format_ARGB32_Premultiplied)
+            overlay.render(image)
+            menu = QtWidgets.QMenu()
+            overlay.populate_menu(menu, tray=True)
+            texts = [a.text() for a in menu.actions()]
+            self.assertIn(i18n.tr("menu.quit"), texts)
+            overlay.deleteLater()
+        i18n.set_language("de")
 
 
 class UpdaterTest(unittest.TestCase):

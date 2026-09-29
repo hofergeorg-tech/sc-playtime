@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import json
 import os
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -21,7 +22,8 @@ from . import __version__
 REPO = "hofergeorg-tech/sc-playtime"
 API_URL = f"https://api.github.com/repos/{REPO}/releases/latest"
 RELEASES_URL = f"https://github.com/{REPO}/releases/latest"
-ASSET_NAME = "SC-Playtime.exe"
+# Name der Datei im Release je Plattform (so lädt der CI-Build sie hoch)
+ASSET_NAME = "SC-Playtime.exe" if sys.platform == "win32" else "SC-Playtime-linux-x86_64"
 TIMEOUT_S = 15
 
 
@@ -81,7 +83,7 @@ def download(url: str) -> Path:
 
 
 def install_script(new_exe: Path, target: Path, restart: bool = True) -> str:
-    """Batch, die wartet bis ``target`` frei ist, es ersetzt und neu startet.
+    """Windows-Batch, die wartet bis ``target`` frei ist, es ersetzt und neu startet.
 
     ``ping`` statt ``timeout`` als Pause, weil ``timeout`` ohne Konsole abbricht.
     Nach 60 Versuchen (~1 min) wird aufgegeben, damit nichts ewig hängt.
@@ -104,12 +106,25 @@ def install_script(new_exe: Path, target: Path, restart: bool = True) -> str:
 
 
 def start_install(new_exe: Path, target: Optional[Path] = None, restart: bool = True) -> None:
-    """Startet den Austausch im Hintergrund. Danach muss sich die App beenden."""
+    """Tauscht die Programmdatei aus und startet neu. Danach muss sich die App beenden."""
     target = target or Path(sys.executable)
-    bat = Path(tempfile.gettempdir()) / "sc-playtime-update.bat"
-    bat.write_text(install_script(new_exe, target, restart), encoding="ascii", errors="replace")
     env = dict(os.environ)
     # neue EXE soll ihren eigenen Temp-Ordner entpacken, nicht den der alten erben
     env["PYINSTALLER_RESET_ENVIRONMENT"] = "1"
-    flags = subprocess.CREATE_NO_WINDOW | subprocess.DETACHED_PROCESS | subprocess.CREATE_NEW_PROCESS_GROUP
-    subprocess.Popen(["cmd.exe", "/c", str(bat)], creationflags=flags, env=env, close_fds=True)
+    if sys.platform == "win32":
+        # Windows sperrt die laufende EXE → Austausch per Batch, sobald sie beendet ist
+        bat = Path(tempfile.gettempdir()) / "sc-playtime-update.bat"
+        bat.write_text(install_script(new_exe, target, restart), encoding="ascii", errors="replace")
+        flags = subprocess.CREATE_NO_WINDOW | subprocess.DETACHED_PROCESS | subprocess.CREATE_NEW_PROCESS_GROUP
+        subprocess.Popen(["cmd.exe", "/c", str(bat)], creationflags=flags, env=env, close_fds=True)
+        return
+    # Linux: laufende Datei darf ersetzt werden. Erst neben das Ziel kopieren
+    # (Temp kann ein anderes Dateisystem sein), dann atomar umbenennen.
+    staged = target.with_name(f".{target.name}.new")
+    shutil.copyfile(new_exe, staged)
+    staged.chmod(0o755)
+    os.replace(staged, target)
+    shutil.rmtree(new_exe.parent, ignore_errors=True)
+    if restart:
+        # kurz warten, bis die alte Instanz ihre Sperrdatei freigegeben hat
+        subprocess.Popen(["sh", "-c", 'sleep 2; exec "$0"', str(target)], env=env, start_new_session=True)

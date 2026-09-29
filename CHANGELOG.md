@@ -1,7 +1,25 @@
 # Changelog
 
+🇬🇧 [English version](CHANGELOG.en.md)
+
 Alle nennenswerten Änderungen an SC Playtime. Format angelehnt an
 [Keep a Changelog](https://keepachangelog.com/de/1.1.0/).
+
+## [1.3.0] – 2026-09-29
+
+### Neu
+- **Englisch als Sprache:** Menü → Sprache mit Flaggen (🇩🇪 Deutsch, 🇬🇧 English)
+  oder „Automatisch“ nach Systemsprache. Overlay, Menü, Meldungen, Hilfe und
+  Changelog sind vollständig übersetzt; weitere Sprachen lassen sich leicht ergänzen.
+- **Linux-Unterstützung:** Prozess-Erkennung über `/proc` (auch Star Citizen unter
+  Wine/Proton/Lutris inklusive Channel), Autostart über `~/.config/autostart`,
+  Daten unter `~/.local/share/SC-Playtime`, automatischer Start über XWayland.
+  Fertiges Programm `SC-Playtime-linux-x86_64` im Release, Selbst-Update auch unter Linux.
+- Automatische Builds und Tests für Windows und Linux über GitHub Actions.
+
+### Behoben
+- Meldungsfenster (z. B. „Kein Update“) zeigten dunkle Schrift auf dunklem Grund und
+  wirkten leer.
 
 ## [1.2.0] – 2026-09-29
 

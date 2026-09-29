@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 60 30" width="60" height="30">
+  <!-- Union Jack ohne clipPath (Qt SVG Tiny); rote Diagonalen versetzt wie im Original -->
+  <rect width="60" height="30" fill="#012169"/>
+  <path d="M0,0 L60,30 M60,0 L0,30" stroke="#FFFFFF" stroke-width="6"/>
+  <polygon points="0,0 30,15 29.106,16.789 -0.894,1.789" fill="#C8102E"/>
+  <polygon points="30,15 60,30 60.894,28.211 30.894,13.211" fill="#C8102E"/>
+  <polygon points="0,30 30,15 30.894,16.789 0.894,31.789" fill="#C8102E"/>
+  <polygon points="30,15 60,0 59.106,-1.789 29.106,13.211" fill="#C8102E"/>
+  <path d="M30,0 V30 M0,15 H60" stroke="#FFFFFF" stroke-width="10"/>
+  <path d="M30,0 V30 M0,15 H60" stroke="#C8102E" stroke-width="6"/>
+</svg>

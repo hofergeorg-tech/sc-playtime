@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import ctypes
 import math
-import os
+import sys
 import time
 from dataclasses import dataclass, field
 from datetime import datetime
@@ -18,7 +18,9 @@ from typing import TYPE_CHECKING, Callable, Optional
 
 from PySide6 import QtCore, QtGui, QtWidgets
 
-from . import __version__, autostart, docs
+from . import __version__, autostart, docs, i18n
+from .docs import resource
+from .i18n import tr
 from .settings import Settings, data_dir
 from .stats import BUCKET_COUNT, Bucket, Summary, buckets, fmt_clock, fmt_hm, played, summarize
 from .tracker import Tracker
@@ -46,27 +48,27 @@ CHANNEL_COLORS = {
     "TECH-PREVIEW": (190, 140, 255),
 }
 
-# Farbvorlagen für den aktiven Channel-Chip: (Menütext, Hintergrund, Schrift)
+# Farbvorlagen für den aktiven Channel-Chip: (Textschlüssel, Hintergrund, Schrift)
 CHIP_PRESETS = (
-    ("Automatisch (Channel-Farbe, dunkle Schrift)", "", ""),
-    ("Dunkelgrün / Weiß", "#0f5132", "#ffffff"),
-    ("Schwarz / Grün", "#05140c", "#64ffb4"),
-    ("Dunkelblau / Weiß", "#0b2a44", "#ffffff"),
-    ("Weiß / Schwarz", "#f2f2f2", "#000000"),
+    ("preset.chip_auto", "", ""),
+    ("preset.darkgreen_white", "#0f5132", "#ffffff"),
+    ("preset.black_green", "#05140c", "#64ffb4"),
+    ("preset.darkblue_white", "#0b2a44", "#ffffff"),
+    ("preset.white_black", "#f2f2f2", "#000000"),
 )
 
 # Farbvorlagen für die Statistik-Kacheln bei laufendem Spiel (offline immer HUD-dunkel)
 TILE_PRESETS = (
-    ("Grün / Dunkel", "#64ffb4", "#04141a"),
-    ("Cyan / Dunkel", "#5fd0ff", "#04141a"),
-    ("Bernstein / Dunkel", "#ffc45a", "#04141a"),
-    ("Nicht einfärben (HUD)", "", ""),
+    ("preset.green_dark", "#64ffb4", "#04141a"),
+    ("preset.cyan_dark", "#5fd0ff", "#04141a"),
+    ("preset.amber_dark", "#ffc45a", "#04141a"),
+    ("preset.tile_off", "", ""),
 )
 
 W = 320
 H_COMPACT = 78
 PAD = 12
-TABS = (("day", "TAG"), ("week", "WOCHE"), ("month", "MONAT"), ("year", "JAHR"), ("total", "GESAMT"))
+TABS = ("day", "week", "month", "year", "total")  # Beschriftung: tr("tab.<key>")
 
 MENU_QSS = """
 QMenu {
@@ -84,7 +86,9 @@ QSlider::sub-page:horizontal { background: #5fd0ff; border-radius: 2px; }
 QSlider::handle:horizontal {
     background: #eaffff; border: 1px solid #5fd0ff; width: 10px; margin: -5px 0; border-radius: 5px;
 }
-QInputDialog, QMessageBox { background: #08111b; color: #cfe6f5; }
+QDialog { background: #08111b; color: #cfe6f5; }
+/* color vererbt sich per Stylesheet nicht an die Kinder → Labels sonst dunkel auf dunkel */
+QDialog QLabel, QDialog QCheckBox, QDialog QRadioButton { color: #cfe6f5; background: transparent; }
 QLineEdit { background: #0a131d; border: 1px solid #1f4255; padding: 4px 7px; color: #e3f4ff; }
 QPushButton {
     background: #102232; border: 1px solid #2a6f8f; padding: 5px 14px; color: #bfe9ff;
@@ -111,6 +115,29 @@ def font(px: int, weight: QtGui.QFont.Weight = QtGui.QFont.Weight.Normal, spacin
     if spacing:
         f.setLetterSpacing(QtGui.QFont.SpacingType.AbsoluteSpacing, spacing)
     return f
+
+
+_qt_translator: Optional[QtCore.QTranslator] = None
+
+
+def apply_qt_language() -> None:
+    """Qt-eigene Texte (Ja/Nein, Abbrechen, Farbwähler …) in der gewählten Sprache."""
+    global _qt_translator
+    app = QtCore.QCoreApplication.instance()
+    if app is None:
+        return
+    if _qt_translator is not None:
+        app.removeTranslator(_qt_translator)
+    _qt_translator = QtCore.QTranslator(app)
+    folder = QtCore.QLibraryInfo.path(QtCore.QLibraryInfo.LibraryPath.TranslationsPath)
+    if _qt_translator.load(f"qtbase_{i18n.language()}", folder):
+        app.installTranslator(_qt_translator)
+
+
+def flag_icon(code: str) -> QtGui.QIcon:
+    """Flagge aus assets/flags/<code>.svg (braucht das Qt-SVG-Plugin)."""
+    path = resource(f"assets/flags/{code}.svg")
+    return QtGui.QIcon(str(path)) if path.exists() else QtGui.QIcon()
 
 
 def chamfer(r: QRectF, c: float) -> QtGui.QPainterPath:
@@ -237,8 +264,8 @@ class Overlay(QtWidgets.QWidget):
             self.setFixedSize(size)
             self._clamp_to_screen()
 
-        state = "AKTIV" if self._running else "offline"
-        self.on_status(f"SC Playtime · {game} {state} · Heute {fmt_hm(self._summary.today)}")
+        state = tr("status.active") if self._running else tr("status.offline")
+        self.on_status(tr("status", game=game, state=state, today=fmt_hm(self._summary.today)))
         self._sync_visibility()
         self.update()
 
@@ -259,8 +286,9 @@ class Overlay(QtWidgets.QWidget):
 
     def _keep_on_top(self) -> None:
         # Manche Spiele im randlosen Fenstermodus schieben sich beim Fokus
-        # davor; TOPMOST ohne Aktivierung erneut setzen.
-        if not self.isVisible():
+        # davor; TOPMOST ohne Aktivierung erneut setzen. Unter Linux genügt
+        # WindowStaysOnTopHint (X11); raise_() würde dort den Fokus stehlen.
+        if not self.isVisible() or sys.platform != "win32":
             return
         swp_nosize, swp_nomove, swp_noactivate = 0x0001, 0x0002, 0x0010
         ctypes.windll.user32.SetWindowPos(
@@ -306,7 +334,7 @@ class Overlay(QtWidgets.QWidget):
             fm = QtGui.QFontMetricsF(font(9, QtGui.QFont.Weight.DemiBold, 1.5))
             x = float(PAD)
             for ch in ["", *self._channels]:
-                w = fm.horizontalAdvance(ch or "ALLE") + 16
+                w = fm.horizontalAdvance(ch or tr("hud.all")) + 16
                 lay.chips.append((ch, QRectF(x, top, w, 18)))
                 x += w + 5
             top += 28
@@ -316,8 +344,8 @@ class Overlay(QtWidgets.QWidget):
                 lay.tiles.append(QRectF(PAD + col * (tw + 6), top + row * 50, tw, 44))
         top += 94 + 12
         sw = (W - 2 * PAD) / len(TABS)
-        for i, (key, label) in enumerate(TABS):
-            lay.tabs.append((key, label, QRectF(PAD + i * sw, top, sw, 22)))
+        for i, key in enumerate(TABS):
+            lay.tabs.append((key, tr(f"tab.{key}"), QRectF(PAD + i * sw, top, sw, 22)))
         top += 32
         lay.chart = QRectF(PAD, top, W - 2 * PAD, 112)
         top += 112 + 16
@@ -426,14 +454,14 @@ class Overlay(QtWidgets.QWidget):
         p.setFont(font(9, QtGui.QFont.Weight.DemiBold, 2))
         p.setPen(rgba(GREEN if self._running else DIM))
         p.drawText(QRectF(0, 12, W - 16, 16), Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter,
-                   "IM SPIEL" if self._running else "OFFLINE")
+                   tr("hud.in_game") if self._running else tr("hud.offline"))
 
         # große Session-Uhr
         self._paint_clock(p, fmt_clock(self._duration), QPointF(15, 64), self._running)
 
         # Heute / Woche rechts
         if s is not None:
-            for baseline, label, value in ((46, "HEUTE", s.today), (64, "WOCHE", s.week)):
+            for baseline, label, value in ((46, tr("hud.today"), s.today), (64, tr("hud.week"), s.week)):
                 vf = font(14, QtGui.QFont.Weight.DemiBold)
                 p.setFont(vf)
                 txt = fmt_hm(value)
@@ -505,13 +533,14 @@ class Overlay(QtWidgets.QWidget):
     def _paint_chips(self, p: QtGui.QPainter, lay: _Layout) -> None:
         current = self._s.channel if self._s.channel in self._channels else ""
         for ch, r in lay.chips:
-            self._chip(p, r, ch or "ALLE", active=ch == current)
+            self._chip(p, r, ch or tr("hud.all"), active=ch == current)
 
     def _paint_tiles(self, p: QtGui.QPainter, lay: _Layout) -> None:
         s = self._summary
-        streak = f"{s.streak} {'TAG' if s.streak == 1 else 'TAGE'}"
-        items = (("HEUTE", fmt_hm(s.today)), ("WOCHE", fmt_hm(s.week)), ("MONAT", fmt_hm(s.month)),
-                 ("JAHR", fmt_hm(s.year)), ("GESAMT", fmt_hm(s.total)), ("SERIE", streak))
+        streak = f"{s.streak} {tr('hud.day') if s.streak == 1 else tr('hud.days')}"
+        items = ((tr("hud.today"), fmt_hm(s.today)), (tr("hud.week"), fmt_hm(s.week)),
+                 (tr("hud.month"), fmt_hm(s.month)), (tr("hud.year"), fmt_hm(s.year)),
+                 (tr("hud.total"), fmt_hm(s.total)), (tr("hud.streak"), streak))
         # Eingefärbt nur, solange das Spiel läuft; offline die dunkle HUD-Optik.
         colored = self._running
         bg = QtGui.QColor(self._s.tile_bg) if colored and self._s.tile_bg else None
@@ -575,7 +604,7 @@ class Overlay(QtWidgets.QWidget):
         p.drawLine(QPointF(chart.left(), base), QPointF(chart.right(), base))
         p.setFont(font(8, QtGui.QFont.Weight.DemiBold, 1))
         p.setPen(rgba(DIM))
-        p.drawText(QPointF(chart.left(), chart.top() + 8), f"MAX {fmt_hm(vmax)}" if vmax else "KEINE DATEN")
+        p.drawText(QPointF(chart.left(), chart.top() + 8), tr("hud.max", value=fmt_hm(vmax)) if vmax else tr("hud.no_data"))
 
         n = len(self._bars)
         slot = chart.width() / n
@@ -612,7 +641,7 @@ class Overlay(QtWidgets.QWidget):
             bucket, v = self._bars[self._hover]
             text, color = f"{bucket.long}   ·   {fmt_hm(v)}", TEXT
         else:
-            text = f"SESSIONS {s.sessions}   ·   Ø {fmt_hm(s.average)}   ·   LÄNGSTE {fmt_hm(s.longest)}"
+            text = tr("hud.footer", count=s.sessions, average=fmt_hm(s.average), longest=fmt_hm(s.longest))
             color = MUTED
         p.setFont(font(9, QtGui.QFont.Weight.DemiBold, 1.2))
         p.setPen(rgba(color))
@@ -687,10 +716,10 @@ class Overlay(QtWidgets.QWidget):
         if self.updates is not None:
             self.updates.add_install_action(menu)
         if tray:
-            menu.addAction("Overlay einblenden" if self._user_hidden else "Overlay ausblenden", self.toggle_hidden)
-        self._check(menu, "Statistik aufgeklappt", s.expanded, self.set_expanded)
+            menu.addAction(tr("menu.show") if self._user_hidden else tr("menu.hide"), self.toggle_hidden)
+        self._check(menu, tr("menu.expanded"), s.expanded, self.set_expanded)
 
-        games = menu.addMenu("Spiel")
+        games = menu.addMenu(tr("menu.game"))
         group = QtGui.QActionGroup(games)
         for g in s.game_list():
             act = games.addAction(f"{g.name}   ({g.exe})")
@@ -699,33 +728,52 @@ class Overlay(QtWidgets.QWidget):
             act.setActionGroup(group)
             act.triggered.connect(lambda _c=False, n=g.name: self._select_game(n))
         games.addSeparator()
-        games.addAction("Spiel hinzufügen …", self._add_game)
+        games.addAction(tr("menu.add_game"), self._add_game)
         if len(s.game_list()) > 1:
-            remove = games.addMenu("Spiel entfernen")
+            remove = games.addMenu(tr("menu.remove_game"))
             for g in s.game_list():
                 act = remove.addAction(g.name)
                 act.triggered.connect(lambda _c=False, n=g.name: self._remove_game(n))
 
         menu.addSeparator()
-        menu.addAction(self._slider(menu, "HINTERGRUND", 0, 100, s.bg_alpha, self._set_bg_alpha))
-        menu.addAction(self._slider(menu, "DECKKRAFT GESAMT", 20, 100, s.opacity, self._set_opacity))
-        colors = menu.addMenu("Farben")
-        self._color_menu(colors.addMenu("Statistik-Kacheln (im Spiel)"), "tile", TILE_PRESETS)
-        self._color_menu(colors.addMenu("Aktiver Channel"), "chip", CHIP_PRESETS)
+        menu.addAction(self._slider(menu, tr("menu.background"), 0, 100, s.bg_alpha, self._set_bg_alpha))
+        menu.addAction(self._slider(menu, tr("menu.opacity"), 20, 100, s.opacity, self._set_opacity))
+        colors = menu.addMenu(tr("menu.colors"))
+        self._color_menu(colors.addMenu(tr("menu.colors_tiles")), "tile", TILE_PRESETS)
+        self._color_menu(colors.addMenu(tr("menu.colors_chip")), "chip", CHIP_PRESETS)
+        self._language_menu(menu.addMenu(flag_icon(i18n.language()), tr("menu.language")))
         menu.addSeparator()
-        self._check(menu, "Position sperren", s.locked, lambda on: self._set("locked", on))
-        self._check(menu, "Klicks durchlassen (nur über Tray zurück)", s.click_through, self._set_click_through)
-        self._check(menu, "Nur anzeigen, wenn ein Spiel läuft", s.hide_when_offline,
+        self._check(menu, tr("menu.lock"), s.locked, lambda on: self._set("locked", on))
+        self._check(menu, tr("menu.click_through"), s.click_through, self._set_click_through)
+        self._check(menu, tr("menu.hide_offline"), s.hide_when_offline,
                     lambda on: self._set("hide_when_offline", on))
-        self._check(menu, "Mit Windows starten", autostart.is_enabled(), autostart.set_enabled)
+        self._check(menu, tr("menu.autostart_win" if sys.platform == "win32" else "menu.autostart_other"),
+                    autostart.is_enabled(), autostart.set_enabled)
         menu.addSeparator()
-        menu.addAction("Hilfe …", docs.show_help)
-        menu.addAction("Was ist neu? …", docs.show_changelog)
+        menu.addAction(tr("menu.help"), docs.show_help)
+        menu.addAction(tr("menu.changelog"), docs.show_changelog)
         if self.updates is not None:
             self.updates.populate_menu(menu)
         menu.addSeparator()
-        menu.addAction("Datenordner öffnen", lambda: os.startfile(str(data_dir())))
-        menu.addAction("Beenden", QtWidgets.QApplication.quit)
+        menu.addAction(tr("menu.data_folder"),
+                       lambda: QtGui.QDesktopServices.openUrl(QtCore.QUrl.fromLocalFile(str(data_dir()))))
+        menu.addAction(tr("menu.quit"), QtWidgets.QApplication.quit)
+
+    def _language_menu(self, menu: QtWidgets.QMenu) -> None:
+        group = QtGui.QActionGroup(menu)
+        entries = [("", tr("lang.auto"))] + list(i18n.LANGUAGES.items())
+        for code, name in entries:
+            act = menu.addAction(flag_icon(code) if code else QtGui.QIcon(), name)
+            act.setCheckable(True)
+            act.setChecked(self._s.language == code)
+            act.setActionGroup(group)
+            act.triggered.connect(lambda _c=False, c=code: self._set_language(c))
+
+    def _set_language(self, code: str) -> None:
+        self._s.language = code
+        i18n.set_language(code)
+        apply_qt_language()
+        self._changed()
 
     @staticmethod
     def _check(menu: QtWidgets.QMenu, text: str, checked: bool, slot: Callable[[bool], None]) -> None:
@@ -778,15 +826,15 @@ class Overlay(QtWidgets.QWidget):
         bg_name, fg_name = f"{prefix}_bg", f"{prefix}_fg"
         current = (getattr(self._s, bg_name), getattr(self._s, fg_name))
         group = QtGui.QActionGroup(menu)
-        for label, bg, fg in presets:
-            act = menu.addAction(label)
+        for key, bg, fg in presets:
+            act = menu.addAction(tr(key))
             act.setCheckable(True)
             act.setChecked(current == (bg, fg))
             act.setActionGroup(group)
             act.triggered.connect(lambda _c=False, b=bg, f=fg: self._set_colors(bg_name, b, fg_name, f))
         menu.addSeparator()
-        menu.addAction("Hintergrundfarbe wählen …", lambda: self._pick_color(bg_name, "Hintergrundfarbe"))
-        menu.addAction("Schriftfarbe wählen …", lambda: self._pick_color(fg_name, "Schriftfarbe"))
+        menu.addAction(tr("menu.pick_bg"), lambda: self._pick_color(bg_name, tr("color.bg")))
+        menu.addAction(tr("menu.pick_fg"), lambda: self._pick_color(fg_name, tr("color.fg")))
 
     def _set_colors(self, bg_name: str, bg: str, fg_name: str, fg: str) -> None:
         setattr(self._s, bg_name, bg)
@@ -812,11 +860,14 @@ class Overlay(QtWidgets.QWidget):
         self._changed()
 
     def _add_game(self) -> None:
-        path, _ = QtWidgets.QFileDialog.getOpenFileName(None, "Spiel-EXE wählen", "", "Programme (*.exe)")
+        # Unter Linux laufen Spiele als native Programme oder als .exe über Wine/Proton
+        filters = f"{tr('game.filter_exe')};;{tr('game.filter_all')}"
+        path, _ = QtWidgets.QFileDialog.getOpenFileName(None, tr("game.pick_exe"), "", filters)
         if not path:
             return
         exe = Path(path).name
-        name, ok = QtWidgets.QInputDialog.getText(None, "Spiel hinzufügen", "Anzeigename:", text=Path(path).stem)
+        name, ok = QtWidgets.QInputDialog.getText(None, tr("game.add_title"), tr("game.display_name"),
+                                                  text=Path(path).stem)
         name = name.strip()
         if not ok or not name:
             return
@@ -828,8 +879,7 @@ class Overlay(QtWidgets.QWidget):
 
     def _remove_game(self, name: str) -> None:
         answer = QtWidgets.QMessageBox.question(
-            None, "Spiel entfernen",
-            f"»{name}« nicht mehr verfolgen?\nBisherige Sessions bleiben gespeichert.",
+            None, tr("game.remove_title"), tr("game.remove_text", name=name),
         )
         if answer != QtWidgets.QMessageBox.StandardButton.Yes:
             return

@@ -2,15 +2,16 @@
 
 from __future__ import annotations
 
+import os
 import sys
 
 from PySide6 import QtCore, QtGui, QtWidgets
 
-from . import __version__, docs
+from . import __version__, docs, i18n
 from .settings import Settings, data_dir
 from .store import Store
 from .tracker import Tracker
-from .ui import MENU_QSS, Overlay, app_icon
+from .ui import MENU_QSS, Overlay, app_icon, apply_qt_language
 from .update_ui import UpdateManager
 from .updater import is_newer
 
@@ -18,6 +19,10 @@ POLL_MS = 2000
 
 
 def main() -> int:
+    if sys.platform.startswith("linux"):
+        # Unter Wayland darf ein Fenster weder seine Position bestimmen noch
+        # "immer oben" bleiben → über XWayland (xcb) laufen, sonst Wayland.
+        os.environ.setdefault("QT_QPA_PLATFORM", "xcb;wayland")
     QtGui.QGuiApplication.setHighDpiScaleFactorRoundingPolicy(
         QtCore.Qt.HighDpiScaleFactorRoundingPolicy.PassThrough
     )
@@ -34,6 +39,8 @@ def main() -> int:
 
     settings_path = folder / "settings.json"
     settings = Settings.load(settings_path)
+    i18n.set_language(settings.language)
+    apply_qt_language()
     store = Store(folder / "playtime.db")
     tracker = Tracker(store, settings.game_list())
     tracker.poll()

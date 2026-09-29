@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import os
+import sys
 from dataclasses import asdict, dataclass, field, fields
 from pathlib import Path
 from typing import Optional
@@ -14,7 +15,11 @@ DEFAULT_GAMES = [{"name": "Star Citizen", "exe": "StarCitizen.exe"}]
 
 
 def data_dir() -> Path:
-    base = Path(os.environ.get("APPDATA") or Path.home())
+    """Windows: %APPDATA%\\SC-Playtime, Linux: $XDG_DATA_HOME/SC-Playtime (~/.local/share)."""
+    if sys.platform == "win32":
+        base = Path(os.environ.get("APPDATA") or Path.home())
+    else:
+        base = Path(os.environ.get("XDG_DATA_HOME") or Path.home() / ".local" / "share")
     path = base / "SC-Playtime"
     path.mkdir(parents=True, exist_ok=True)
     return path
@@ -35,6 +40,7 @@ class Settings:
     chip_fg: str = ""  # aktiver Channel-Chip: Schrift (#rrggbb), "" = dunkel
     tile_bg: str = "#64ffb4"  # Statistik-Kacheln im Spiel: Hintergrund, "" = nicht einfärben
     tile_fg: str = "#04141a"  # Statistik-Kacheln im Spiel: Schrift, "" = hell
+    language: str = ""  # "de", "en", … ; "" = Sprache des Systems
     auto_update: bool = True  # beim Start und alle 12 h nach Updates suchen
     seen_version: str = ""  # zuletzt gestartete Version → "Was ist neu?" nach Update
     locked: bool = False
