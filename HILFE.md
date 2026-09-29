@@ -290,6 +290,13 @@ das Programm in einem geschützten Ordner (z. B. `C:\Programme` oder `/usr/bin`)
 sich nicht selbst ersetzen – dann die neue Version von der Release-Seite laden oder das
 Programm in einen eigenen Ordner legen.
 
+**Windows meldet „Der Computer wurde durch Windows geschützt“.**
+Die EXE ist noch nicht digital signiert (beantragt, siehe
+[CODE_SIGNING.md](CODE_SIGNING.md)), deshalb warnt SmartScreen bei neuen Downloads. Auf
+„Weitere Informationen“ → „Trotzdem ausführen“ klicken. Wer prüfen will, dass die Datei
+wirklich aus diesem Repository gebaut wurde:
+`gh attestation verify SC-Playtime.exe --repo hofergeorg-tech/sc-playtime`
+
 **Stört das den Anti-Cheat?**
 SC Playtime liest nur die Prozessliste und die Startzeit des Spiels über normale
 Funktionen des Betriebssystems, so wie der Task-Manager. Es greift nicht auf das Spiel

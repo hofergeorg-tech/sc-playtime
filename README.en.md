@@ -77,3 +77,9 @@ register them in `DOCS`.
 ```powershell
 python -m unittest discover -s tests
 ```
+
+## Signing & license
+
+Every release file carries a GitHub build provenance attestation; Windows code signing
+via SignPath Foundation has been requested – see [CODE_SIGNING.md](CODE_SIGNING.md).
+License: [MIT](LICENSE).

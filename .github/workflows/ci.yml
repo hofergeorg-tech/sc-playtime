@@ -10,7 +10,10 @@ on:
   pull_request:
 
 permissions:
-  contents: write
+  contents: write      # Release anlegen
+  id-token: write      # Herkunftsnachweis (Sigstore)
+  attestations: write
+  actions: read        # SignPath lädt das unsignierte Artefakt
 
 jobs:
   test:
@@ -46,6 +49,9 @@ jobs:
             file: dist/SC-Playtime
             asset: SC-Playtime-linux-x86_64
     runs-on: ${{ matrix.os }}
+    env:
+      # Secrets sind in "if:" nicht direkt abfragbar, Umgebungsvariablen schon
+      SIGNPATH_API_TOKEN: ${{ secrets.SIGNPATH_API_TOKEN }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -63,9 +69,42 @@ jobs:
       - run: python build.py
       - shell: bash
         run: mkdir out && cp "${{ matrix.file }}" "out/${{ matrix.asset }}"
+
+      # --- Windows-Signatur über SignPath Foundation (kostenlos für Open Source) ---
+      # Läuft erst, wenn das Secret SIGNPATH_API_TOKEN und die Variable
+      # SIGNPATH_ORGANIZATION_ID gesetzt sind (siehe CODE_SIGNING.md). Bis dahin
+      # wird unsigniert veröffentlicht.
+      - name: Unsignierte EXE für SignPath bereitstellen
+        id: unsigned
+        if: runner.os == 'Windows' && env.SIGNPATH_API_TOKEN != ''
+        uses: actions/upload-artifact@v4
+        with:
+          name: unsigned-${{ matrix.asset }}
+          path: out/${{ matrix.asset }}
+      - name: Mit SignPath signieren
+        if: runner.os == 'Windows' && env.SIGNPATH_API_TOKEN != ''
+        uses: signpath/github-action-submit-signing-request@v1
+        with:
+          api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
+          organization-id: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
+          project-slug: sc-playtime
+          signing-policy-slug: release-signing
+          github-artifact-id: ${{ steps.unsigned.outputs.artifact-id }}
+          wait-for-completion: true
+          output-artifact-directory: signed
+      - name: Signierte EXE übernehmen
+        if: runner.os == 'Windows' && env.SIGNPATH_API_TOKEN != ''
+        shell: bash
+        run: cp "signed/${{ matrix.asset }}" "out/${{ matrix.asset }}"
+
+      # Herkunftsnachweis: belegt, dass die Datei aus genau diesem Commit gebaut wurde.
+      # Prüfen: gh attestation verify <datei> --repo hofergeorg-tech/sc-playtime
+      - uses: actions/attest-build-provenance@v2
+        with:
+          subject-path: out/${{ matrix.asset }}
       - uses: actions/upload-artifact@v4
         with:
-          name: ${{ matrix.asset }}
+          name: release-${{ matrix.asset }}
           path: out/${{ matrix.asset }}
 
   release:
@@ -75,6 +114,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/download-artifact@v4
         with:
+          pattern: release-*
           path: out
           merge-multiple: true
       - run: python3 release_notes.py "${GITHUB_REF_NAME}" > notes.md

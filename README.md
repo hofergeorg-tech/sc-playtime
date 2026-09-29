@@ -77,3 +77,9 @@ ergänzen, Flagge als `assets/flags/<code>.svg` ablegen, optional Hilfe/Changelo
 ```powershell
 python -m unittest discover -s tests
 ```
+
+## Signatur & Lizenz
+
+Jede Release-Datei trägt einen Herkunftsnachweis von GitHub; die Windows-Signatur über
+SignPath Foundation ist beantragt – siehe [CODE_SIGNING.md](CODE_SIGNING.md).
+Lizenz: [MIT](LICENSE).

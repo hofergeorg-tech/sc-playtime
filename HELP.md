@@ -285,6 +285,12 @@ is in a protected folder (e.g. `C:\Program Files` or `/usr/bin`), it cannot repl
 itself – download the new version from the release page or move the program to its own
 folder.
 
+**Windows says "Windows protected your PC".**
+The EXE is not digitally signed yet (requested, see [CODE_SIGNING.md](CODE_SIGNING.md)),
+so SmartScreen warns about new downloads. Click "More info" → "Run anyway". To verify
+that the file really was built from this repository:
+`gh attestation verify SC-Playtime.exe --repo hofergeorg-tech/sc-playtime`
+
 **Does this interfere with anti-cheat?**
 SC Playtime only reads the process list and the game's start time using regular
 operating system functions, just like the Task Manager. It does not access the game.

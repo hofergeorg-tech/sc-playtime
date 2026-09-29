@@ -5,6 +5,15 @@
 Alle nennenswerten Änderungen an SC Playtime. Format angelehnt an
 [Keep a Changelog](https://keepachangelog.com/de/1.1.0/).
 
+## [1.3.1] – 2026-09-29
+
+### Neu
+- **Herkunftsnachweis:** Jede Release-Datei ist per GitHub-Attestation überprüfbar
+  (`gh attestation verify …`). Die Windows-Signatur über SignPath Foundation ist
+  beantragt und im Build vorbereitet.
+- Lizenz: MIT.
+- Hilfe: Abschnitt zur SmartScreen-Warnung.
+
 ## [1.3.0] – 2026-09-29
 
 ### Neu
