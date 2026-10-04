@@ -8,10 +8,57 @@ Spiele mit ihrem Programmnamen. Nichts davon greift in das Spiel ein.
 
 from __future__ import annotations
 
+import json
 import os
+import re
 import sys
-from pathlib import PureWindowsPath
+from pathlib import Path, PureWindowsPath
 from typing import Iterable, Optional
+
+_VERSION_RE = re.compile(r"(\d+\.\d+(?:\.\d+)?)")
+
+
+def version_from_manifest(text: str) -> str:
+    """Patch aus ``build_manifest.id``: ``"Branch": "sc-alpha-4.3.1"`` → ``4.3.1``."""
+    try:
+        data = json.loads(text).get("Data", {})
+    except (ValueError, AttributeError):
+        return ""
+    for key in ("Branch", "Version"):
+        m = _VERSION_RE.search(str(data.get(key, "")))
+        if m:
+            return m.group(1)
+    return ""
+
+
+def version_from_log(lines: Iterable[str]) -> str:
+    """Patch aus dem Kopf von ``Game.log`` (Zeile ``Branch: sc-alpha-4.3.1``)."""
+    for line in lines:
+        if "Branch:" in line:
+            m = _VERSION_RE.search(line.split("Branch:", 1)[1])
+            if m:
+                return m.group(1)
+    return ""
+
+
+def version_in_dirs(dirs: Iterable[Path]) -> str:
+    """Erster Patch, der sich in einem der Ordner finden lässt, sonst ``""``."""
+    for d in dirs:
+        try:
+            manifest = d / "build_manifest.id"
+            if manifest.is_file():
+                version = version_from_manifest(manifest.read_text(encoding="utf-8", errors="replace"))
+                if version:
+                    return version
+            log = d / "Game.log"
+            if log.is_file():
+                with log.open(encoding="utf-8", errors="replace") as f:
+                    version = version_from_log(line for _, line in zip(range(200), f))
+                if version:
+                    return version
+        except OSError:
+            continue
+    return ""
 
 
 def channel_from_path(path: Optional[str]) -> str:
@@ -118,6 +165,58 @@ def _linux_start_time(pid: int) -> Optional[float]:
     return start_from_stat(stat, float(btime), float(os.sysconf("SC_CLK_TCK")))
 
 
+def _linux_version(pid: int) -> str:
+    # Unter Wine ist der Programmpfad ein Windows-Pfad; das Arbeitsverzeichnis
+    # (meist …/LIVE/Bin64) liegt dagegen als echter Linux-Pfad vor.
+    dirs: list[Path] = []
+    try:
+        cwd = Path(os.readlink(f"/proc/{pid}/cwd"))
+        dirs += [cwd, cwd.parent]
+    except OSError:
+        pass
+    image = _linux_image_path(pid)
+    if image and image.startswith("/"):
+        dirs.append(Path(image).parent.parent)
+    return version_in_dirs(dirs)
+
+
+_linux_xss = None  # ctypes-Handles für XScreenSaver, False = nicht verfügbar
+
+
+def _linux_idle() -> Optional[float]:
+    """Sekunden seit der letzten Eingabe über die XScreenSaver-Erweiterung (X11/XWayland)."""
+    global _linux_xss
+    if _linux_xss is None:
+        _linux_xss = False
+        try:
+            import ctypes
+            import ctypes.util
+
+            class _Info(ctypes.Structure):
+                _fields_ = [("window", ctypes.c_ulong), ("state", ctypes.c_int), ("kind", ctypes.c_int),
+                            ("til_or_since", ctypes.c_ulong), ("idle", ctypes.c_ulong),
+                            ("event_mask", ctypes.c_ulong)]
+
+            x11 = ctypes.cdll.LoadLibrary(ctypes.util.find_library("X11") or "libX11.so.6")
+            xss = ctypes.cdll.LoadLibrary(ctypes.util.find_library("Xss") or "libXss.so.1")
+            x11.XOpenDisplay.restype = ctypes.c_void_p
+            x11.XDefaultRootWindow.argtypes = [ctypes.c_void_p]
+            x11.XDefaultRootWindow.restype = ctypes.c_ulong
+            xss.XScreenSaverAllocInfo.restype = ctypes.POINTER(_Info)
+            xss.XScreenSaverQueryInfo.argtypes = [ctypes.c_void_p, ctypes.c_ulong, ctypes.POINTER(_Info)]
+            display = x11.XOpenDisplay(None)
+            if display:
+                _linux_xss = (xss, display, x11.XDefaultRootWindow(display), xss.XScreenSaverAllocInfo())
+        except (OSError, AttributeError):
+            pass
+    if not _linux_xss:
+        return None
+    xss, display, root, info = _linux_xss
+    if not xss.XScreenSaverQueryInfo(display, root, info):
+        return None
+    return info.contents.idle / 1000.0
+
+
 # --- Windows (Win32 über ctypes) ---------------------------------------------
 
 if sys.platform == "win32":
@@ -212,10 +311,38 @@ if sys.platform == "win32":
         finally:
             _kernel32.CloseHandle(handle)
 
+    def _win_version(pid: int) -> str:
+        image = _win_image_path(pid)
+        if not image:
+            return ""
+        p = Path(image)
+        return version_in_dirs([p.parent.parent, p.parent])  # …\LIVE\ bzw. …\LIVE\Bin64\
+
+    class _LASTINPUTINFO(ctypes.Structure):
+        _fields_ = [("cbSize", wintypes.UINT), ("dwTime", wintypes.DWORD)]
+
+    _user32 = ctypes.WinDLL("user32")
+    _user32.GetLastInputInfo.argtypes = [ctypes.POINTER(_LASTINPUTINFO)]
+    _user32.GetLastInputInfo.restype = wintypes.BOOL
+    _kernel32.GetTickCount.restype = wintypes.DWORD
+
+    def _win_idle() -> Optional[float]:
+        """Sekunden seit der letzten Tastatur-/Maus-/Controller-Eingabe am PC."""
+        info = _LASTINPUTINFO()
+        info.cbSize = ctypes.sizeof(_LASTINPUTINFO)
+        if not _user32.GetLastInputInfo(ctypes.byref(info)):
+            return None
+        # beide Werte sind 32-Bit-Millisekunden und laufen nach ~49 Tagen über
+        return ((_kernel32.GetTickCount() - info.dwTime) & 0xFFFFFFFF) / 1000.0
+
     find_processes = _win_find
     process_image_path = _win_image_path
     process_start_time = _win_start_time
+    process_version = _win_version
+    idle_seconds = _win_idle
 else:
     find_processes = _linux_find
     process_image_path = _linux_image_path
     process_start_time = _linux_start_time
+    process_version = _linux_version
+    idle_seconds = _linux_idle

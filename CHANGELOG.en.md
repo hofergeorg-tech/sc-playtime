@@ -5,6 +5,34 @@
 All notable changes to SC Playtime. Format based on
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [1.4.0] – 2026-10-04
+
+### Added
+- **Scroll back in the chart:** for DAY, WEEK and MONTH the arrows ‹ › at the top right
+  of the chart page into the past, the mouse wheel step by step – back to your first
+  session.
+- **Analysis** (Menu → Analysis …): heatmap "When do you play?" by weekday and hour, plus
+  **playtime per patch**. The Star Citizen version (e.g. 4.3.1) is now read from the
+  installation folder and stored with every session.
+- **Edit sessions** (Menu → Edit sessions …): correct start and end or delete sessions,
+  e.g. after standby with the game left open.
+- **AFK detection** (Menu → AFK detection): optionally pause after 5–30 minutes without
+  input; the session ends at the last key press and a new one starts with the next
+  input. The overlay then shows "AFK".
+- **Global hotkeys** (Windows): Ctrl+Shift+F9 shows/hides the overlay, Ctrl+Shift+F11
+  toggles "Click-through" – even in game. Change them under Menu → Hotkeys ….
+- **Export** of all sessions as CSV (for Excel) or JSON (Menu → Data).
+- **Automatic backup:** a copy of the database once a day in `backups`, the last 7 are
+  kept; plus "Back up now" in the menu.
+- **New languages:** Français, Español, Italiano, Polski and 简体中文 (help and changelog
+  in English there).
+- **About SC Playtime** in the menu with version, links and a donate button (PayPal).
+
+### Fixed
+- The context menu (and the color picker or message boxes) often disappeared behind the
+  overlay or behind the game. Menus and dialogs now always stay on top, and the overlay
+  no longer pushes itself in front while one is open.
+
 ## [1.3.2] – 2026-09-29
 
 ### Fixed

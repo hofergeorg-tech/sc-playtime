@@ -3,7 +3,7 @@
 🇩🇪 [Deutsch](README.md)
 
 A mini overlay in Star Citizen HUD style that tracks your playtime – for **Windows** and
-**Linux**, in **English** and **German**.
+**Linux**, in English, German, French, Spanish, Italian, Polish and Chinese.
 
 📥 **[Download](https://github.com/hofergeorg-tech/sc-playtime/releases/latest)** ·
 📖 **[Help – all features explained](HELP.md)** · 📝 **[Changelog](CHANGELOG.en.md)**
@@ -15,11 +15,16 @@ A mini overlay in Star Citizen HUD style that tracks your playtime – for **Win
 - **Multiple games**: add any program via right-click → Game → Add game …
 - Display: running session (large clock), today / week; expanded: month, year, total,
   streak (consecutive days), sessions, average and longest session, bar chart
-  day (14) / week (12) / month (12) / year (5) with hover values
+  day (14) / week (12) / month (12) / year (5) with hover values, scrollable back via
+  arrows or mouse wheel
+- **Analysis**: heatmap by weekday × hour, playtime per Star Citizen patch
+- **Edit/delete sessions**, **AFK detection** (time without input doesn't count)
+- **Export** as CSV/JSON, daily **backup** of the database (7 copies)
+- **Global hotkeys** (Windows) to show/hide and to toggle click-through
 - Transparency: background and overall opacity via separate sliders
 - Colors: statistic tiles are highlighted in game (default green with dark text); tiles
   and the active channel chip adjustable via presets or free color choice
-- Language: English / Deutsch with flags in the menu, or automatic based on the system
+- Language: 7 languages with flags in the menu, or automatic based on the system
 - Autostart (Windows: HKCU\…\Run, Linux: `~/.config/autostart`), tray icon, single instance
 - Update check via GitHub Releases with self-update; help and "What's new?" right in the
   menu
@@ -48,8 +53,9 @@ on top (applies to all overlays). Linux specifics (Wayland, GNOME tray): see
 
 Windows `%APPDATA%\SC-Playtime\`, Linux `~/.local/share/SC-Playtime/`
 
-- `playtime.db` — SQLite, table `sessions(game, channel, start, end)`
+- `playtime.db` — SQLite, table `sessions(game, channel, start, end, version)`
 - `settings.json` — position, transparency, colors, language, game list …
+- `backups/` — daily copies of `playtime.db` (the last 7)
 
 ## Build
 

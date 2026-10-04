@@ -14,6 +14,11 @@ your statistics. It runs on **Windows** and **Linux**.
 - [Language](#language)
 - [Multiple games](#multiple-games)
 - [Channels (LIVE, PTU, …)](#channels-live-ptu-)
+- [Analysis (heatmap and patches)](#analysis-heatmap-and-patches)
+- [Editing sessions](#editing-sessions)
+- [AFK detection](#afk-detection)
+- [Hotkeys](#hotkeys)
+- [Export and backup](#export-and-backup)
 - [How time is counted](#how-time-is-counted)
 - [Updates](#updates)
 - [Linux](#linux)
@@ -51,9 +56,9 @@ exits immediately so nothing is counted twice.
 
 | Element | Meaning |
 | --- | --- |
-| Dot at the top left | pulses green while the game is running; grey when offline |
+| Dot at the top left | pulses green while the game is running; yellow when AFK; grey when offline |
 | Game name | the displayed game, next to it the channel (e.g. **LIVE**) |
-| **IN GAME** / **OFFLINE** | status at the top right |
+| **IN GAME** / **AFK** / **OFFLINE** | status at the top right (AFK see [AFK detection](#afk-detection)) |
 | Large clock | length of the running session; when offline, the length of the last one |
 | TODAY / WEEK | played today and since Monday of this week |
 
@@ -87,6 +92,11 @@ Clicking the header of the overlay expands or collapses the statistics.
   The current period is highlighted in green. Hover over a bar to see the exact period
   and playtime at the bottom.
 
+  **Scrolling back** (DAY, WEEK, MONTH): the arrows ‹ › at the top right of the chart
+  jump half a chart into the past or back towards today. Use the **mouse wheel** over
+  the chart for single steps (up = older). You can't scroll back further than your first
+  session. Switching the tab or filter jumps back to today.
+
   With a channel filter active (e.g. PTU), the colored bars show only that channel.
   Behind them, the total of all channels is shown in grey and the scale stays the same
   as for "ALL" – so you can see at a glance which share belongs to the channel. Hovering
@@ -102,6 +112,8 @@ Clicking the header of the overlay expands or collapses the statistics.
 | Drag with the left mouse button | move the overlay (unless "Lock position" is on) |
 | Click a channel chip | set the channel filter |
 | Click a tab | change the chart period |
+| Click ‹ / › on the chart | scroll back / forward |
+| Mouse wheel over the chart | one period back (up) or forward (down) |
 | Hover over a bar | exact values in the footer |
 | Right-click the overlay | menu |
 | Left-click the tray icon | show/hide the overlay |
@@ -117,20 +129,25 @@ start.
 | Show/Hide overlay | tray menu only |
 | Show statistics | same as clicking the header |
 | Game | choose the displayed game, add or remove games |
+| Analysis … | heatmap and playtime per patch, see [Analysis](#analysis-heatmap-and-patches) |
+| Edit sessions … | correct or delete sessions, see [Editing sessions](#editing-sessions) |
 | BACKGROUND (slider) | opacity of the dark background only; text stays fully visible |
 | OVERALL OPACITY (slider) | opacity of the whole overlay (20–100 %) |
 | Colors | see [Colors](#colors) |
 | Language | see [Language](#language) |
 | Lock position | the overlay can no longer be moved |
-| Click-through | mouse clicks pass through the overlay into the game. Can only be turned off via the **tray icon**. |
+| Click-through | mouse clicks pass through the overlay into the game. Can only be turned off via the **tray icon** or the [hotkey](#hotkeys). |
 | Only show while a game is running | the overlay hides itself automatically when offline |
+| AFK detection | don't count time without input, see [AFK detection](#afk-detection) |
+| Hotkeys … | global keys to show/hide, see [Hotkeys](#hotkeys) |
 | Start with Windows / Start on login | autostart on login (no admin rights needed) |
 | Help … | this help |
 | What's new? … | changelog with all changes per version |
+| About SC Playtime … | version, links, license and donate button (PayPal) |
 | Check for updates | check GitHub right away, see [Updates](#updates) |
 | Check for updates automatically | check at start and every 12 hours (default: on) |
 | ⬆ Install update … | appears at the top when a new version is available |
-| Open data folder | opens the folder with database and settings |
+| Data | export as CSV/JSON, backups, data folder, see [Export and backup](#export-and-backup) |
 | Quit | close the overlay; the running session is saved first |
 
 ## Colors
@@ -157,12 +174,15 @@ Tip: for good readability combine light backgrounds with dark text and vice vers
 
 **Menu → Language** (with flag) offers:
 
-- **Automatic (system)** – default; German if your operating system is set to German,
+- **Automatic (system)** – default; the language of your operating system if supported,
   English otherwise
 - 🇩🇪 **Deutsch**
 - 🇬🇧 **English**
+- 🇫🇷 **Français**, 🇪🇸 **Español**, 🇮🇹 **Italiano**, 🇵🇱 **Polski**, 🇨🇳 **简体中文**
 
 The change applies immediately to the overlay, menu, messages, help and "What's new?".
+Help and changelog are available in German and English; the other languages show them
+in English.
 
 ## Multiple games
 
@@ -187,6 +207,76 @@ The channel is read from the installation folder:
 
 Likewise EPTU, HOTFIX and TECH-PREVIEW. Every session remembers its channel, so the
 statistics can be shown per channel or combined ("ALL").
+
+## Analysis (heatmap and patches)
+
+**Menu → Analysis …** opens a window for the displayed game and the selected channel
+filter:
+
+- **When do you play?** – a heatmap with the weekdays as rows and the 24 hours as
+  columns. The brighter a cell, the more you played at that time. Hover over a cell for
+  the exact playtime; below it shows your most played weekday and hour.
+- **Playtime per patch** – playtime, share, number of sessions and period for each Star
+  Citizen version (e.g. 4.3.1). The patch is read from `build_manifest.id` or `Game.log`
+  in the installation folder (e.g. `…\StarCitizen\LIVE\`) when a session starts.
+  Sessions from before version 1.4 and games without these files are listed as
+  "unknown".
+
+## Editing sessions
+
+**Menu → Edit sessions …** lists all sessions of the displayed game, newest first. Use
+it to fix mistakes, e.g. when the PC was in standby while the game was open:
+
+- **Edit …** (or double-click): change start and end.
+- **Delete**: remove one or more selected sessions (Ctrl/Shift for multiple selection).
+  This cannot be undone – [back up](#export-and-backup) first if in doubt.
+
+The running session (green, "running") is locked until the game is closed.
+
+## AFK detection
+
+**Menu → AFK detection** lets you exclude time without input: **Off** (default) or
+pause after **5, 10, 15 or 30 minutes** without keyboard, mouse or controller input.
+
+- Once the time is reached, the session ends at your **last key press** – so the waiting
+  time itself doesn't count either. The overlay shows **AFK** with a yellow dot.
+- As soon as there is input again and the game is still running, a new session starts
+  automatically.
+- Any input on the PC counts, not just in the game.
+- On Linux this works under X11/XWayland (library `libXss`); without it the detection
+  has no effect.
+
+## Hotkeys
+
+Global hotkeys work everywhere, even while the game is in the foreground (**Windows**
+only):
+
+| Default | Effect |
+| --- | --- |
+| **Ctrl+Shift+F9** | show/hide the overlay |
+| **Ctrl+Shift+F11** | turn "Click-through" on/off |
+
+Change them under **Menu → Hotkeys …**: click a field, press the new combination, clear
+it with ✕ (= no hotkey). Letters, digits, F1–F24, Home/End/Ins/Del, PgUp/PgDown, arrow
+keys, Pause and Space are allowed – except for the F keys always with Ctrl, Shift, Alt
+or Win. If a combination is already used by another program, you'll get a notice.
+
+## Export and backup
+
+Under **Menu → Data**:
+
+| Entry | Function |
+| --- | --- |
+| Export as CSV … | all sessions of all games as a table, e.g. for Excel (columns: game, channel, patch, start, end, duration in seconds and minutes) |
+| Export as JSON … | the same as JSON, times additionally with time zone and as Unix timestamps |
+| Back up now | create a copy of the database right away |
+| Daily automatic backup (7 days) | create a copy once a day; the last 7 are kept (default: on) |
+| Open backup folder | folder `backups` inside the data folder |
+| Open data folder | folder with database and settings |
+
+**Restoring a backup:** quit the overlay, replace `playtime.db` in the data folder with
+the file you want from `backups` (e.g. copy `playtime-2026-10-04.db` and rename it to
+`playtime.db`), start the overlay again.
 
 ## How time is counted
 
@@ -259,8 +349,9 @@ Everything is stored locally (Menu → "Open data folder"):
 
 | File | Content |
 | --- | --- |
-| `playtime.db` | SQLite database with all sessions (game, channel, start, end) |
+| `playtime.db` | SQLite database with all sessions (game, channel, start, end, patch) |
 | `settings.json` | position, transparency, colors, language, game list, … |
+| `backups/` | daily copies of the database, see [Export and backup](#export-and-backup) |
 
 Your playtimes and settings never leave your PC. The only internet connection is the
 update check: it only fetches the public version info from GitHub and can be turned off
@@ -274,7 +365,16 @@ Set Star Citizen to "Borderless window". Check whether the overlay was hidden vi
 tray icon.
 
 **I can't click the overlay anymore.**
-"Click-through" is on. Right-click the tray icon and untick it.
+"Click-through" is on. Press **Ctrl+Shift+F11**, or right-click the tray icon and untick
+it.
+
+**The menu or a window appears behind the game.**
+Since version 1.4, menus and dialogs are always shown in front of the overlay and the
+game. If a window is still hidden, switch to it with Alt+Tab.
+
+**The playtime is wrong because I left the game open.**
+Correct the session under **Menu → Edit sessions …** and turn on
+[AFK detection](#afk-detection) for the future.
 
 **The overlay has disappeared.**
 Left-clicking the tray icon shows it again. With "Only show while a game is running"

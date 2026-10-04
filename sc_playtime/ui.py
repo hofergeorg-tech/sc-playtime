@@ -18,11 +18,11 @@ from typing import TYPE_CHECKING, Callable, Optional
 
 from PySide6 import QtCore, QtGui, QtWidgets
 
-from . import __version__, autostart, docs, i18n
+from . import __version__, autostart, backup, dialogs, docs, export, i18n
 from .docs import resource
 from .i18n import tr
 from .settings import Settings, data_dir
-from .stats import BUCKET_COUNT, Bucket, Summary, buckets, fmt_clock, fmt_hm, played, summarize
+from .stats import BUCKET_COUNT, Bucket, Summary, buckets, fmt_clock, fmt_hm, max_offset, played, summarize
 from .tracker import Tracker
 
 if TYPE_CHECKING:
@@ -69,6 +69,8 @@ W = 320
 H_COMPACT = 78
 PAD = 12
 TABS = ("day", "week", "month", "year", "total")  # Beschriftung: tr("tab.<key>")
+SCROLLABLE = ("day", "week", "month")  # Reiter, deren Diagramm sich zurückblättern lässt
+AFK_CHOICES = (5, 10, 15, 30)  # Minuten im Menü "AFK-Erkennung"
 
 MENU_QSS = """
 QMenu {
@@ -94,7 +96,62 @@ QPushButton {
     background: #102232; border: 1px solid #2a6f8f; padding: 5px 14px; color: #bfe9ff;
 }
 QPushButton:hover { background: #16384f; border-color: #45b6e0; }
+QPushButton:disabled { color: #4a6577; border-color: #1f4255; }
+QDialog QWidget { color: #cfe6f5; }
+QTableWidget {
+    background: #0a131d; border: 1px solid #1f4255; color: #cfe6f5; gridline-color: #16303f;
+    selection-background-color: #12455f; selection-color: #eaffff;
+}
+QHeaderView::section {
+    background: #102232; color: #5fd0ff; border: none; border-right: 1px solid #1f4255;
+    padding: 4px 8px; font-weight: 700;
+}
+QTableCornerButton::section { background: #102232; border: none; }
+QDateTimeEdit, QKeySequenceEdit QLineEdit {
+    background: #0a131d; border: 1px solid #1f4255; padding: 3px 6px; color: #e3f4ff;
+}
+QCalendarWidget QWidget { background: #0a131d; color: #cfe6f5; alternate-background-color: #102232; }
+QScrollBar:vertical { background: #0a131d; width: 10px; }
+QScrollBar::handle:vertical { background: #1f4255; min-height: 30px; }
+QScrollBar:horizontal { background: #0a131d; height: 10px; }
+QScrollBar::handle:horizontal { background: #1f4255; min-width: 30px; }
+QScrollBar::add-line, QScrollBar::sub-line { height: 0; width: 0; }
+QScrollBar::add-page, QScrollBar::sub-page { background: none; }
+QToolTip { background: #08111b; color: #eaffff; border: 1px solid #2a6f8f; padding: 4px; }
 """
+
+HWND_TOPMOST = -1
+_SWP_NOSIZE, _SWP_NOMOVE, _SWP_NOACTIVATE = 0x0001, 0x0002, 0x0010
+
+
+def set_topmost(widget: QtWidgets.QWidget) -> None:
+    """Fenster in die Ebene "immer oben" heben, ohne es zu aktivieren (nur Windows)."""
+    if sys.platform != "win32":
+        return
+    ctypes.windll.user32.SetWindowPos(
+        ctypes.c_void_p(int(widget.winId())), ctypes.c_void_p(HWND_TOPMOST), 0, 0, 0, 0,
+        _SWP_NOSIZE | _SWP_NOMOVE | _SWP_NOACTIVATE,
+    )
+
+
+class TopmostPopups(QtCore.QObject):
+    """Menüs und modale Dialoge über Overlay und Spiel halten.
+
+    Das Overlay ist "immer oben"; ein normales Menü oder ein Farbwähler landete
+    dadurch oft dahinter bzw. hinter dem randlosen Spielfenster. Als App-weiter
+    Ereignisfilter erwischt er auch Untermenüs und das Tray-Menü.
+    """
+
+    def eventFilter(self, obj: QtCore.QObject, event: QtCore.QEvent) -> bool:
+        if (event.type() == QtCore.QEvent.Type.Show and isinstance(obj, QtWidgets.QWidget) and obj.isWindow()
+                and (isinstance(obj, QtWidgets.QMenu) or obj.isModal())):
+            set_topmost(obj)
+        return False
+
+
+def popup_open() -> bool:
+    return (QtWidgets.QApplication.activePopupWidget() is not None
+            or QtWidgets.QApplication.activeModalWidget() is not None)
 
 
 def rgba(c: tuple[int, int, int], a: int = 255) -> QtGui.QColor:
@@ -132,6 +189,10 @@ def apply_qt_language() -> None:
     folder = QtCore.QLibraryInfo.path(QtCore.QLibraryInfo.LibraryPath.TranslationsPath)
     if _qt_translator.load(f"qtbase_{i18n.language()}", folder):
         app.installTranslator(_qt_translator)
+
+
+def _open_folder(path: Path) -> None:
+    QtGui.QDesktopServices.openUrl(QtCore.QUrl.fromLocalFile(str(path)))
 
 
 def flag_icon(code: str) -> QtGui.QIcon:
@@ -178,6 +239,8 @@ class _Layout:
     tiles: list[QRectF] = field(default_factory=list)
     tabs: list[tuple[str, str, QRectF]] = field(default_factory=list)
     chart: QRectF = field(default_factory=QRectF)
+    older: QRectF = field(default_factory=QRectF)  # Pfeil ‹ (zurückblättern)
+    newer: QRectF = field(default_factory=QRectF)  # Pfeil › (vorblättern)
     footer_y: float = 0.0
 
 
@@ -205,8 +268,16 @@ class Overlay(QtWidgets.QWidget):
         self._bars: list[tuple[Bucket, float]] = []  # Zeit im gewählten Channel
         self._totals: list[float] = []  # Zeit aller Channels je Zeitraum
         self._filter = ""  # aktiver Channel-Filter, "" = alle
+        self._afk = False
+        self._offset = 0  # Diagramm um so viele Zeiträume zurückgeblättert
+        self._max_offset = 0
+        self._hover_arrow = 0  # -1 = ‹, 1 = ›, 0 = keiner
+        self._wheel = 0  # angesammelte Mausrad-Schritte (1/8 Grad)
         self.on_status: Callable[[str], None] = lambda _t: None
         self.updates: Optional["UpdateManager"] = None  # von app.py gesetzt
+        # von app.py gesetzt: Sicherung jetzt anlegen (→ Pfad), Tastenkürzel neu registrieren (→ id: ok)
+        self.backup_now: Optional[Callable[[], Path]] = None
+        self.apply_hotkeys: Callable[[], dict[int, bool]] = lambda: {}
 
         self.setWindowTitle("SC Playtime")
         self.setWindowIcon(app_icon())
@@ -244,6 +315,7 @@ class Overlay(QtWidgets.QWidget):
         game = self._pick_game()
         self._game = game
         self._running = game in self._tracker.running()
+        self._afk = self._running and self._tracker.is_afk(game)
         self._live_channel = self._tracker.live_channel(game)
         self._channels = self._tracker.channels(game)
         channel = self._s.channel if self._s.channel in self._channels else ""
@@ -253,14 +325,17 @@ class Overlay(QtWidgets.QWidget):
         now = datetime.now()
         self._duration = self._tracker.current_duration(game, channel)
         self._summary = summarize(sessions, now)
+        first = datetime.fromtimestamp(min(s for s, _ in all_sessions)).date() if all_sessions else now.date()
         if self._s.tab == "total":
             # alle Jahre seit der ersten Session (mindestens das laufende)
-            first = datetime.fromtimestamp(min(s for s, _ in all_sessions)).year if all_sessions else now.year
-            kind, count = "year", now.year - first + 1
+            kind, count = "year", now.year - first.year + 1
         else:
             kind = self._s.tab if self._s.tab in BUCKET_COUNT else "day"
             count = BUCKET_COUNT[kind]
-        periods = buckets(kind, now.date(), count)
+        # Zurückblättern höchstens bis zur ersten Session
+        self._max_offset = max_offset(kind, first, now.date(), count) if self._s.tab in SCROLLABLE else 0
+        self._offset = min(self._offset, self._max_offset)
+        periods = buckets(kind, now.date(), count, self._offset)
         self._bars = [(b, played(sessions, b.start, b.end)) for b in periods]
         # Mit Channel-Filter: Gesamtzeit aller Channels als Schatten-Balken und
         # gemeinsame Skala. Sonst füllt der größte PTU-Balken (z. B. 6 min) das
@@ -273,7 +348,7 @@ class Overlay(QtWidgets.QWidget):
             self.setFixedSize(size)
             self._clamp_to_screen()
 
-        state = tr("status.active") if self._running else tr("status.offline")
+        state = tr("status.afk") if self._afk else tr("status.active") if self._running else tr("status.offline")
         self.on_status(tr("status", game=game, state=state, today=fmt_hm(self._summary.today)))
         self._sync_visibility()
         self.update()
@@ -297,13 +372,11 @@ class Overlay(QtWidgets.QWidget):
         # Manche Spiele im randlosen Fenstermodus schieben sich beim Fokus
         # davor; TOPMOST ohne Aktivierung erneut setzen. Unter Linux genügt
         # WindowStaysOnTopHint (X11); raise_() würde dort den Fokus stehlen.
-        if not self.isVisible() or sys.platform != "win32":
+        # Solange ein Menü oder Dialog offen ist, nicht: Das Overlay schob sich
+        # sonst alle 5 s vor das gerade geöffnete Kontextmenü.
+        if not self.isVisible() or popup_open():
             return
-        swp_nosize, swp_nomove, swp_noactivate = 0x0001, 0x0002, 0x0010
-        ctypes.windll.user32.SetWindowPos(
-            ctypes.c_void_p(int(self.winId())), ctypes.c_void_p(-1), 0, 0, 0, 0,
-            swp_nosize | swp_nomove | swp_noactivate,
-        )
+        set_topmost(self)
 
     # --- Fenster ------------------------------------------------------------
 
@@ -357,6 +430,9 @@ class Overlay(QtWidgets.QWidget):
             lay.tabs.append((key, tr(f"tab.{key}"), QRectF(PAD + i * sw, top, sw, 22)))
         top += 32
         lay.chart = QRectF(PAD, top, W - 2 * PAD, 112)
+        if self._s.tab in SCROLLABLE:
+            lay.newer = QRectF(lay.chart.right() - 20, top - 4, 20, 16)
+            lay.older = QRectF(lay.newer.left() - 22, top - 4, 20, 16)
         top += 112 + 16
         lay.footer_y = top + 14
         lay.height = top + 26
@@ -428,9 +504,13 @@ class Overlay(QtWidgets.QWidget):
 
     def _paint_header(self, p: QtGui.QPainter) -> None:
         s = self._summary
-        # Status-Punkt (pulsiert, solange das Spiel läuft)
+        active = self._running and not self._afk
+        # Status-Punkt (pulsiert, solange das Spiel läuft; AFK: ruhig gelb)
         c = QPointF(20, 21)
-        if self._running:
+        if self._afk:
+            p.setPen(QtGui.QPen(rgba(AMBER), 1))
+            p.setBrush(rgba(AMBER, 160))
+        elif active:
             pulse = 0.5 + 0.5 * math.sin(time.monotonic() * 3.2)
             halo = QtGui.QRadialGradient(c, 5 + 6 * pulse)
             halo.setColorAt(0, rgba(GREEN, 150 * pulse))
@@ -461,12 +541,12 @@ class Overlay(QtWidgets.QWidget):
 
         # Status oben rechts
         p.setFont(font(9, QtGui.QFont.Weight.DemiBold, 2))
-        p.setPen(rgba(GREEN if self._running else DIM))
+        p.setPen(rgba(AMBER if self._afk else GREEN if active else DIM))
         p.drawText(QRectF(0, 12, W - 16, 16), Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter,
-                   tr("hud.in_game") if self._running else tr("hud.offline"))
+                   tr("hud.afk") if self._afk else tr("hud.in_game") if active else tr("hud.offline"))
 
         # große Session-Uhr
-        self._paint_clock(p, fmt_clock(self._duration), QPointF(15, 64), self._running)
+        self._paint_clock(p, fmt_clock(self._duration), QPointF(15, 64), active)
 
         # Heute / Woche rechts
         if s is not None:
@@ -581,8 +661,12 @@ class Overlay(QtWidgets.QWidget):
             p.drawText(QPointF(r.left() + 9, r.top() + 36), value)
 
     def _paint_tabs(self, p: QtGui.QPainter, lay: _Layout) -> None:
-        p.setFont(font(9, QtGui.QFont.Weight.DemiBold, 2))
+        wide = font(9, QtGui.QFont.Weight.DemiBold, 2)
+        narrow = font(8, QtGui.QFont.Weight.DemiBold, 0.5)
         for key, label, r in lay.tabs:
+            # lange Wörter (z. B. "TYDZIEŃ") enger setzen statt abzuschneiden
+            fits = QtGui.QFontMetricsF(wide).horizontalAdvance(label) <= r.width() - 4
+            p.setFont(wide if fits else narrow)
             active = key == self._s.tab
             if active:
                 g = QtGui.QLinearGradient(0, r.top(), 0, r.bottom())
@@ -614,6 +698,7 @@ class Overlay(QtWidgets.QWidget):
         p.setFont(font(8, QtGui.QFont.Weight.DemiBold, 1))
         p.setPen(rgba(DIM))
         p.drawText(QPointF(chart.left(), chart.top() + 8), tr("hud.max", value=fmt_hm(vmax)) if vmax else tr("hud.no_data"))
+        self._paint_arrows(p, lay)
 
         n = len(self._bars)
         slot = chart.width() / n
@@ -624,7 +709,7 @@ class Overlay(QtWidgets.QWidget):
         label_every = 1 if widest + 4 <= slot else 2
         for i, (bucket, v) in enumerate(self._bars):
             x = chart.left() + i * slot + (slot - bw) / 2
-            last = i == n - 1
+            last = i == n - 1 and self._offset == 0  # laufender Zeitraum (nur ohne Zurückblättern sichtbar)
             hover = i == self._hover
             if filtered:
                 color = CHANNEL_COLORS.get(self._filter, CYAN)
@@ -653,6 +738,18 @@ class Overlay(QtWidgets.QWidget):
                 p.setFont(label_font)
                 p.setPen(rgba(TEXT if (hover or last) else DIM))
                 p.drawText(QRectF(x - 10, base + 3, bw + 20, 12), Qt.AlignmentFlag.AlignCenter, bucket.short)
+
+    def _paint_arrows(self, p: QtGui.QPainter, lay: _Layout) -> None:
+        """‹ › oben rechts am Diagramm; ausgegraut, wenn es in die Richtung nicht weitergeht."""
+        if lay.older.isNull():
+            return
+        for r, enabled, d in ((lay.older, self._offset < self._max_offset, -1), (lay.newer, self._offset > 0, 1)):
+            c = r.center()
+            if enabled and self._hover_arrow == d:
+                p.fillPath(chamfer(r, 3), rgba(CYAN, 40))
+            p.setPen(QtGui.QPen(rgba(CYAN, 230 if enabled else 45), 1.6))
+            p.drawPolyline(QtGui.QPolygonF([QPointF(c.x() - 2 * d, c.y() - 4), QPointF(c.x() + 2 * d, c.y()),
+                                            QPointF(c.x() - 2 * d, c.y() + 4)]))
 
     def _paint_footer(self, p: QtGui.QPainter, lay: _Layout) -> None:
         s = self._summary
@@ -686,10 +783,40 @@ class Overlay(QtWidgets.QWidget):
                 self._moved = True
                 self.move(origin + delta)
                 return
-        hover = self._bar_index_at(e.position()) if self._s.expanded else None
-        if hover != self._hover:
+        arrow = self._arrow_at(e.position()) if self._s.expanded else 0
+        hover = self._bar_index_at(e.position()) if self._s.expanded and not arrow else None
+        if hover != self._hover or arrow != self._hover_arrow:
             self._hover = hover
+            self._hover_arrow = arrow
             self.update()
+
+    def _arrow_at(self, pos: QPointF) -> int:
+        lay = self._layout()
+        if lay.older.adjusted(-3, -3, 1, 3).contains(pos):
+            return -1
+        if lay.newer.adjusted(-1, -3, 3, 3).contains(pos):
+            return 1
+        return 0
+
+    def scroll_chart(self, steps: int) -> None:
+        """Positiv = in die Vergangenheit, negativ = Richtung heute."""
+        offset = max(0, min(self._max_offset, self._offset + steps))
+        if offset != self._offset:
+            self._offset = offset
+            self.refresh()
+
+    def wheelEvent(self, e: QtGui.QWheelEvent) -> None:
+        lay = self._layout()
+        if not self._s.expanded or lay.older.isNull() or not lay.chart.adjusted(0, -8, 0, 16).contains(e.position()):
+            return
+        delta = e.angleDelta()
+        # Rad nach oben bzw. nach links = ältere Zeiträume; Touchpads liefern
+        # kleine Schritte, die erst gesammelt werden
+        self._wheel += delta.y() or -delta.x()
+        steps = int(self._wheel / 120)
+        if steps:
+            self._wheel -= steps * 120
+            self.scroll_chart(steps)
 
     def mouseReleaseEvent(self, e: QtGui.QMouseEvent) -> None:
         if e.button() != Qt.MouseButton.LeftButton or self._press is None:
@@ -701,20 +828,27 @@ class Overlay(QtWidgets.QWidget):
             return
         pos = e.position()
         lay = self._layout()
+        arrow = self._arrow_at(pos) if self._s.expanded else 0
+        if arrow:
+            page = max(1, len(self._bars) // 2)
+            return self.scroll_chart(-arrow * page)
         for ch, r in lay.chips:
             if r.contains(pos):
                 self._s.channel = ch
+                self._offset = 0
                 return self._changed()
         for key, _label, r in lay.tabs:
             if r.contains(pos):
                 self._s.tab = key
+                self._offset = 0
                 return self._changed()
         if pos.y() < H_COMPACT:
             self.set_expanded(not self._s.expanded)
 
     def leaveEvent(self, _e: QtCore.QEvent) -> None:
-        if self._hover is not None:
+        if self._hover is not None or self._hover_arrow:
             self._hover = None
+            self._hover_arrow = 0
             self.update()
 
     def contextMenuEvent(self, e: QtGui.QContextMenuEvent) -> None:
@@ -758,6 +892,8 @@ class Overlay(QtWidgets.QWidget):
             for g in s.game_list():
                 act = remove.addAction(g.name)
                 act.triggered.connect(lambda _c=False, n=g.name: self._remove_game(n))
+        menu.addAction(tr("menu.stats"), self.show_stats)
+        menu.addAction(tr("menu.sessions"), self.show_sessions)
 
         menu.addSeparator()
         menu.addAction(self._slider(menu, tr("menu.background"), 0, 100, s.bg_alpha, self._set_bg_alpha))
@@ -771,17 +907,94 @@ class Overlay(QtWidgets.QWidget):
         self._check(menu, tr("menu.click_through"), s.click_through, self._set_click_through)
         self._check(menu, tr("menu.hide_offline"), s.hide_when_offline,
                     lambda on: self._set("hide_when_offline", on))
+        self._afk_menu(menu.addMenu(tr("menu.afk")))
+        menu.addAction(tr("menu.hotkeys"), self._edit_hotkeys)
         self._check(menu, tr("menu.autostart_win" if sys.platform == "win32" else "menu.autostart_other"),
                     autostart.is_enabled(), autostart.set_enabled)
         menu.addSeparator()
         menu.addAction(tr("menu.help"), docs.show_help)
         menu.addAction(tr("menu.changelog"), docs.show_changelog)
+        menu.addAction(tr("menu.about"), lambda: dialogs.show_about(app_icon()))
         if self.updates is not None:
             self.updates.populate_menu(menu)
         menu.addSeparator()
-        menu.addAction(tr("menu.data_folder"),
-                       lambda: QtGui.QDesktopServices.openUrl(QtCore.QUrl.fromLocalFile(str(data_dir()))))
+        self._data_menu(menu.addMenu(tr("menu.data")))
         menu.addAction(tr("menu.quit"), QtWidgets.QApplication.quit)
+
+    def _afk_menu(self, menu: QtWidgets.QMenu) -> None:
+        group = QtGui.QActionGroup(menu)
+        for minutes in (0, *AFK_CHOICES):
+            act = menu.addAction(tr("afk.minutes", minutes=minutes) if minutes else tr("afk.off"))
+            act.setCheckable(True)
+            act.setChecked(self._s.afk_minutes == minutes)
+            act.setActionGroup(group)
+            act.triggered.connect(lambda _c=False, m=minutes: self._set_afk(m))
+
+    def _set_afk(self, minutes: int) -> None:
+        self._s.afk_minutes = minutes
+        self._tracker.afk_s = minutes * 60.0
+        self._changed()
+
+    def _data_menu(self, menu: QtWidgets.QMenu) -> None:
+        menu.addAction(tr("menu.export_csv"), lambda: self._export("csv"))
+        menu.addAction(tr("menu.export_json"), lambda: self._export("json"))
+        menu.addSeparator()
+        if self.backup_now is not None:
+            menu.addAction(tr("menu.backup_now"), self._backup_now)
+        self._check(menu, tr("menu.auto_backup"), self._s.auto_backup, lambda on: self._set("auto_backup", on))
+        menu.addAction(tr("menu.backup_folder"), lambda: _open_folder(backup.backup_dir(data_dir())))
+        menu.addSeparator()
+        menu.addAction(tr("menu.data_folder"), lambda: _open_folder(data_dir()))
+
+    # --- Auswertung, Sessions, Daten -----------------------------------------
+
+    def show_stats(self) -> None:
+        dialogs.show_stats(self._game, self._filter, self._tracker.sessions(self._game, self._filter),
+                           self._tracker.versioned(self._game, self._filter), app_icon())
+
+    def show_sessions(self) -> None:
+        dialogs.show_sessions(self._tracker, self._game, self.refresh, app_icon())
+
+    def _export(self, kind: str) -> None:
+        rows = self._tracker.rows()
+        name = f"sc-playtime-{datetime.now():%Y-%m-%d}.{kind}"
+        start = str(Path(QtCore.QStandardPaths.writableLocation(
+            QtCore.QStandardPaths.StandardLocation.DocumentsLocation)) / name)
+        # Overlay als Besitzer: der Dateidialog erscheint sonst hinter dem Spiel
+        path, _ = QtWidgets.QFileDialog.getSaveFileName(self, tr("export.title"), start, tr(f"export.filter_{kind}"))
+        if not path:
+            return
+        text = export.to_csv(rows, tr("csv.delimiter")) if kind == "csv" else export.to_json(rows)
+        try:
+            # BOM, damit Excel Umlaute im CSV richtig erkennt
+            Path(path).write_text(text, encoding="utf-8-sig" if kind == "csv" else "utf-8", newline="")
+        except OSError as exc:
+            QtWidgets.QMessageBox.warning(None, tr("export.title"), tr("export.failed", error=exc))
+            return
+        QtWidgets.QMessageBox.information(None, tr("export.title"), tr("export.done", count=len(rows), path=path))
+
+    def _backup_now(self) -> None:
+        try:
+            path = self.backup_now()
+        except Exception as exc:  # OSError, sqlite3.Error …
+            QtWidgets.QMessageBox.warning(None, tr("backup.title"), tr("backup.failed", error=exc))
+            return
+        QtWidgets.QMessageBox.information(None, tr("backup.title"), tr("backup.done", path=path))
+
+    def _edit_hotkeys(self) -> None:
+        dlg = dialogs.HotkeyDialog(self._s)
+        if dlg.exec() != QtWidgets.QDialog.DialogCode.Accepted:
+            return
+        self._s.hotkey_toggle, self._s.hotkey_click = dlg.values()
+        self._save()
+        result = self.apply_hotkeys()
+        texts = {1: self._s.hotkey_toggle, 2: self._s.hotkey_click}
+        failed = [texts[i] for i, ok in result.items() if not ok and texts.get(i)]
+        if failed and sys.platform == "win32":
+            QtWidgets.QMessageBox.warning(None, tr("hk.title"), tr("hk.failed", keys=", ".join(failed)))
+
+    def toggle_click_through(self) -> None:
+        self._set_click_through(not self._s.click_through)
 
     def _language_menu(self, menu: QtWidgets.QMenu) -> None:
         group = QtGui.QActionGroup(menu)
@@ -797,6 +1010,7 @@ class Overlay(QtWidgets.QWidget):
         self._s.language = code
         i18n.set_language(code)
         apply_qt_language()
+        dialogs.close_all()
         self._changed()
 
     @staticmethod
@@ -881,12 +1095,13 @@ class Overlay(QtWidgets.QWidget):
     def _select_game(self, name: str) -> None:
         self._s.game = name
         self._s.channel = ""
+        self._offset = 0
         self._changed()
 
     def _add_game(self) -> None:
         # Unter Linux laufen Spiele als native Programme oder als .exe über Wine/Proton
         filters = f"{tr('game.filter_exe')};;{tr('game.filter_all')}"
-        path, _ = QtWidgets.QFileDialog.getOpenFileName(None, tr("game.pick_exe"), "", filters)
+        path, _ = QtWidgets.QFileDialog.getOpenFileName(self, tr("game.pick_exe"), "", filters)
         if not path:
             return
         exe = Path(path).name

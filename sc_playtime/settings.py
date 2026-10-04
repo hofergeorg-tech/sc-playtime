@@ -46,6 +46,10 @@ class Settings:
     locked: bool = False
     click_through: bool = False
     hide_when_offline: bool = False
+    afk_minutes: int = 0  # 0 = AFK-Erkennung aus, sonst Minuten ohne Eingabe
+    auto_backup: bool = True  # täglich playtime.db nach backups/ sichern (7 Stände)
+    hotkey_toggle: str = "Ctrl+Shift+F9"  # Overlay ein-/ausblenden, "" = keins
+    hotkey_click: str = "Ctrl+Shift+F11"  # Klicks durchlassen umschalten, "" = keins
 
     @classmethod
     def load(cls, path: Path) -> "Settings":

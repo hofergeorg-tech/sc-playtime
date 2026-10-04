@@ -5,6 +5,35 @@
 Alle nennenswerten Änderungen an SC Playtime. Format angelehnt an
 [Keep a Changelog](https://keepachangelog.com/de/1.1.0/).
 
+## [1.4.0] – 2026-10-04
+
+### Neu
+- **Diagramm zurückblättern:** Bei TAG, WOCHE und MONAT blättern die Pfeile ‹ › oben
+  rechts am Diagramm in die Vergangenheit, das Mausrad schrittweise – bis zur ersten
+  Session.
+- **Auswertung** (Menü → Auswertung …): Heatmap „Wann spielst du?“ nach Wochentag und
+  Uhrzeit sowie **Spielzeit je Patch**. Die Star-Citizen-Version (z. B. 4.3.1) wird ab
+  jetzt bei jeder Session aus dem Installationsordner gelesen und gespeichert.
+- **Sessions bearbeiten** (Menü → Sessions bearbeiten …): Start und Ende korrigieren
+  oder Sessions löschen, z. B. nach Standby mit offenem Spiel.
+- **AFK-Erkennung** (Menü → AFK-Erkennung): optional nach 5–30 Minuten ohne Eingabe
+  pausieren; die Session endet beim letzten Tastendruck, bei der nächsten Eingabe
+  beginnt eine neue. Das Overlay zeigt dann „AFK“.
+- **Globale Tastenkürzel** (Windows): Strg+Umschalt+F9 blendet das Overlay ein/aus,
+  Strg+Umschalt+F11 schaltet „Klicks durchlassen“ um – auch im Spiel. Änderbar unter
+  Menü → Tastenkürzel ….
+- **Export** aller Sessions als CSV (für Excel) oder JSON (Menü → Daten).
+- **Automatische Sicherung:** einmal täglich eine Kopie der Datenbank in `backups`, die
+  letzten 7 bleiben liegen; zusätzlich „Jetzt sichern“ im Menü.
+- **Neue Sprachen:** Français, Español, Italiano, Polski und 简体中文 (Hilfe und
+  Changelog dort auf Englisch).
+- **Über SC Playtime** im Menü mit Version, Links und Spenden-Knopf (PayPal).
+
+### Behoben
+- Das Kontextmenü (und Farbwähler oder Meldungen) verschwand oft hinter dem Overlay
+  bzw. hinter dem Spiel. Menüs und Dialoge liegen jetzt immer obenauf, und das Overlay
+  drängt sich nicht mehr davor, solange eines offen ist.
+
 ## [1.3.2] – 2026-09-29
 
 ### Behoben

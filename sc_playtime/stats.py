@@ -40,12 +40,16 @@ class Bucket:
     end: float
 
 
-def buckets(kind: str, today: date, n: int) -> list[Bucket]:
-    """Die letzten ``n`` Zeiträume der Art ``kind``, ältester zuerst."""
+def buckets(kind: str, today: date, n: int, offset: int = 0) -> list[Bucket]:
+    """``n`` Zeiträume der Art ``kind``, ältester zuerst.
+
+    ``offset`` verschiebt das Fenster um so viele Zeiträume in die Vergangenheit
+    (0 = der letzte Balken ist der laufende Zeitraum).
+    """
     out: list[Bucket] = []
     weekdays, months = tr_list("weekdays"), tr_list("months")
     fmt_date, fmt_short = tr("fmt.date"), tr("fmt.date_short")
-    for i in range(n - 1, -1, -1):
+    for i in range(n - 1 + offset, offset - 1, -1):
         if kind == "day":
             d = today - timedelta(days=i)
             nxt = d + timedelta(days=1)
@@ -66,6 +70,66 @@ def buckets(kind: str, today: date, n: int) -> list[Bucket]:
         else:
             raise ValueError(f"unbekannter Zeitraum: {kind}")
     return out
+
+
+def periods_back(kind: str, first: date, today: date) -> int:
+    """Wie viele Zeiträume ``first`` vor dem laufenden liegt (0 = derselbe)."""
+    if kind == "day":
+        return max(0, (today - first).days)
+    if kind == "week":
+        monday = lambda d: d - timedelta(days=d.weekday())  # noqa: E731
+        return max(0, (monday(today) - monday(first)).days // 7)
+    if kind == "month":
+        return max(0, (today.year - first.year) * 12 + today.month - first.month)
+    if kind == "year":
+        return max(0, today.year - first.year)
+    raise ValueError(f"unbekannter Zeitraum: {kind}")
+
+
+def max_offset(kind: str, first: date, today: date, n: int) -> int:
+    """Weitestes Zurückblättern: bis der älteste Balken die erste Session zeigt."""
+    return max(0, periods_back(kind, first, today) - (n - 1))
+
+
+def heatmap(sessions: Sequence[Session]) -> list[list[float]]:
+    """Spielzeit je Wochentag (0 = Montag) und Stunde: ``grid[weekday][hour]`` in Sekunden."""
+    grid = [[0.0] * 24 for _ in range(7)]
+    for s, e in sessions:
+        t = s
+        while t < e:
+            dt = datetime.fromtimestamp(t)
+            nxt = (dt.replace(minute=0, second=0, microsecond=0) + timedelta(hours=1)).timestamp()
+            if nxt <= t:  # Zeitumstellung: Stunde ohne Fortschritt überspringen
+                nxt = t + 3600
+            grid[dt.weekday()][dt.hour] += min(e, nxt) - t
+            t = nxt
+    return grid
+
+
+@dataclass(frozen=True)
+class PatchStats:
+    version: str  # "" = unbekannt (Sessions vor 1.4 oder kein Star Citizen)
+    total: float
+    sessions: int
+    first: float
+    last: float
+
+
+def _version_key(v: str) -> tuple[int, ...]:
+    return tuple(int(p) for p in v.split(".") if p.isdigit())
+
+
+def by_version(rows: Sequence[tuple[str, float, float]]) -> list[PatchStats]:
+    """Spielzeit je Patch, neuester zuerst; Unbekanntes ans Ende."""
+    groups: dict[str, list[tuple[float, float]]] = {}
+    for version, s, e in rows:
+        groups.setdefault(version, []).append((s, e))
+    out = [
+        PatchStats(v, sum(e - s for s, e in ss), sum(1 for s, e in ss if e - s >= STREAK_MIN_S),
+                   min(s for s, _ in ss), max(e for _, e in ss))
+        for v, ss in groups.items()
+    ]
+    return sorted(out, key=lambda p: (p.version != "", _version_key(p.version)), reverse=True)
 
 
 @dataclass(frozen=True)

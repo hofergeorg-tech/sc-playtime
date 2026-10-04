@@ -3,7 +3,8 @@
 🇬🇧 [English](README.en.md)
 
 Mini-Overlay im Star-Citizen-HUD-Stil, das die Spielzeit erfasst – für **Windows** und
-**Linux**, auf **Deutsch** und **Englisch**.
+**Linux**, auf Deutsch, Englisch, Französisch, Spanisch, Italienisch, Polnisch und
+Chinesisch.
 
 📥 **[Download](https://github.com/hofergeorg-tech/sc-playtime/releases/latest)** ·
 📖 **[Hilfe – alle Funktionen erklärt](HILFE.md)** · 📝 **[Changelog](CHANGELOG.md)**
@@ -15,11 +16,16 @@ Mini-Overlay im Star-Citizen-HUD-Stil, das die Spielzeit erfasst – für **Wind
 - **mehrere Spiele**: beliebige weitere Programme über Rechtsklick → Spiel → Spiel hinzufügen …
 - Anzeige: laufende Session (große Uhr), Heute / Woche; aufgeklappt: Monat, Jahr, Gesamt,
   Serie (Tage am Stück), Sessions, Ø- und längste Session, Balkendiagramm
-  Tag (14) / Woche (12) / Monat (12) / Jahr (5) mit Hover-Werten
+  Tag (14) / Woche (12) / Monat (12) / Jahr (5) mit Hover-Werten, per Pfeil oder
+  Mausrad zurückblätterbar
+- **Auswertung**: Heatmap nach Wochentag × Uhrzeit, Spielzeit je Star-Citizen-Patch
+- **Sessions bearbeiten/löschen**, **AFK-Erkennung** (Zeit ohne Eingabe zählt nicht)
+- **Export** als CSV/JSON, tägliche **Sicherung** der Datenbank (7 Stände)
+- **Globale Tastenkürzel** (Windows) zum Ein-/Ausblenden und für „Klicks durchlassen“
 - Transparenz: Hintergrund und Gesamt-Deckkraft getrennt per Schieberegler
 - Farben: Statistik-Kacheln werden im Spiel eingefärbt (Standard Grün mit dunkler Schrift),
   Kacheln und aktiver Channel-Chip per Vorlage oder freier Farbwahl einstellbar
-- Sprache: Deutsch / English mit Flaggen im Menü, oder automatisch nach System
+- Sprache: 7 Sprachen mit Flaggen im Menü, oder automatisch nach System
 - Autostart (Windows: HKCU\…\Run, Linux: `~/.config/autostart`), Tray-Icon, Einzelinstanz
 - Update-Prüfung über GitHub Releases mit Selbst-Update; Hilfe und „Was ist neu?“
   direkt im Menü
@@ -48,8 +54,9 @@ siehe [Hilfe → Linux](HILFE.md#linux).
 
 Windows `%APPDATA%\SC-Playtime\`, Linux `~/.local/share/SC-Playtime/`
 
-- `playtime.db` — SQLite, Tabelle `sessions(game, channel, start, end)`
+- `playtime.db` — SQLite, Tabelle `sessions(game, channel, start, end, version)`
 - `settings.json` — Position, Transparenz, Farben, Sprache, Spieleliste …
+- `backups/` — tägliche Kopien von `playtime.db` (die letzten 7)
 
 ## Programm bauen
 
