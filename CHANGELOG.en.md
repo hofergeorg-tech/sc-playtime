@@ -5,6 +5,21 @@
 All notable changes to SC Playtime. Format based on
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [1.4.1] – 2026-10-09
+
+### Improved
+- **Faster overlay with a long play history:** the statistics were recalculated completely
+  every second, and the work grew quadratically with the number of sessions (1.5 s at 5000
+  sessions – every second, on top of the game). Finished sessions are now evaluated once and
+  only the running one is added each second: 2 ms instead of 1500 ms.
+- The pulsing dot redraws the overlay 8 instead of 16 times per second.
+
+### Security
+- Updates are only installed if the downloaded file matches the checksum GitHub reports for
+  the release.
+- Settings are first written completely to a temporary file and then swapped in – a crash
+  while saving no longer resets them to defaults.
+
 ## [1.4.0] – 2026-10-04
 
 ### Added

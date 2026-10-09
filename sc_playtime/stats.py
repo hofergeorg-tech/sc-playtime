@@ -145,34 +145,79 @@ class Summary:
     streak: int
 
 
-def summarize(sessions: Sequence[Session], now: datetime) -> Summary:
+Days = dict  # date → gespielte Sekunden an diesem Tag (Ortszeit)
+
+
+def daily_totals(sessions: Sequence[Session]) -> Days:
+    """Spielzeit je Kalendertag, Sessions über Mitternacht anteilig. Ein Durchgang über alle Sessions."""
+    days: dict[date, float] = {}
+    for s, e in sessions:
+        t = s
+        while t < e:
+            d = datetime.fromtimestamp(t).date()
+            nxt = _ts(d + timedelta(days=1))
+            if nxt <= t:  # Zeitumstellung: Tag ohne Fortschritt überspringen
+                nxt = t + 86400
+            days[d] = days.get(d, 0.0) + min(e, nxt) - t
+            t = nxt
+    return days
+
+
+def merge_days(*parts: Days) -> Days:
+    out: dict[date, float] = {}
+    for part in parts:
+        for d, sec in part.items():
+            out[d] = out.get(d, 0.0) + sec
+    return out
+
+
+def days_between(days: Days, first: date, end: date) -> float:
+    """Summe der Tage von ``first`` bis ausschließlich ``end``."""
+    total, d = 0.0, first
+    while d < end:
+        total += days.get(d, 0.0)
+        d += timedelta(days=1)
+    return total
+
+
+def bucket_totals(days: Days, periods: Sequence[Bucket]) -> list[float]:
+    """Spielzeit je Balken aus den Tagessummen (alle Zeiträume beginnen um Mitternacht)."""
+    return [days_between(days, datetime.fromtimestamp(b.start).date(), datetime.fromtimestamp(b.end).date())
+            for b in periods]
+
+
+def summarize_days(days: Days, durations: Sequence[float], now: datetime) -> Summary:
+    """Wie :func:`summarize`, aber aus fertigen Tagessummen und Session-Längen (schnell, für jede Sekunde)."""
     today = now.date()
-    end = now.timestamp()
-
-    def since(d: date) -> float:
-        return played(sessions, _ts(d), end)
-
-    durations = [e - s for s, e in sessions if e - s >= STREAK_MIN_S]
+    tomorrow = today + timedelta(days=1)
 
     streak = 0
     day = today
-    if played(sessions, _ts(day), _ts(day + timedelta(days=1))) < STREAK_MIN_S:
+    if days.get(day, 0.0) < STREAK_MIN_S:
         day -= timedelta(days=1)  # heute noch nicht gespielt bricht die Serie nicht
-    while played(sessions, _ts(day), _ts(day + timedelta(days=1))) >= STREAK_MIN_S:
+    while days.get(day, 0.0) >= STREAK_MIN_S:
         streak += 1
         day -= timedelta(days=1)
 
+    counted = [d for d in durations if d >= STREAK_MIN_S]
     return Summary(
-        today=since(today),
-        week=since(today - timedelta(days=today.weekday())),
-        month=since(today.replace(day=1)),
-        year=since(date(today.year, 1, 1)),
-        total=sum(e - s for s, e in sessions),
-        sessions=len(durations),
-        average=sum(durations) / len(durations) if durations else 0.0,
-        longest=max(durations, default=0.0),
+        today=days.get(today, 0.0),
+        week=days_between(days, today - timedelta(days=today.weekday()), tomorrow),
+        month=days_between(days, today.replace(day=1), tomorrow),
+        year=days_between(days, date(today.year, 1, 1), tomorrow),
+        total=sum(durations),
+        sessions=len(counted),
+        average=sum(counted) / len(counted) if counted else 0.0,
+        longest=max(counted, default=0.0),
         streak=streak,
     )
+
+
+def summarize(sessions: Sequence[Session], now: datetime) -> Summary:
+    end = now.timestamp()
+    # Nichts nach "jetzt" zählen (wie bisher)
+    clipped = [(s, min(e, end)) for s, e in sessions if s < end]
+    return summarize_days(daily_totals(clipped), [e - s for s, e in sessions], now)
 
 
 def fmt_hm(sec: float) -> str:

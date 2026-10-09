@@ -64,7 +64,11 @@ class Settings:
         return s
 
     def save(self, path: Path) -> None:
-        path.write_text(json.dumps(asdict(self), indent=2, ensure_ascii=False), encoding="utf-8")
+        # Erst vollständig daneben schreiben, dann tauschen: ein Absturz mittendrin
+        # hinterlässt sonst eine halbe Datei, und beim nächsten Start wären alle Einstellungen weg.
+        tmp = path.with_name(path.name + ".tmp")
+        tmp.write_text(json.dumps(asdict(self), indent=2, ensure_ascii=False), encoding="utf-8")
+        os.replace(tmp, path)
 
     def game_list(self) -> list[Game]:
         return [Game(g["name"], g["exe"]) for g in self.games if g.get("name") and g.get("exe")]

@@ -57,6 +57,9 @@ class Tracker:
         self._live: dict[str, SessionRow] = {}  # game name → laufende Session
         self._paused: dict[str, SessionRow] = {}  # game name → letzte Session vor der AFK-Pause
         self._flushed: dict[str, float] = {}
+        # Steigt, sobald sich abgeschlossene Sessions ändern (nicht beim bloßen
+        # Verlängern der laufenden) → die Anzeige kann ihre Auswertung zwischenspeichern.
+        self.revision = 0
 
     def set_games(self, games: Iterable[Game]) -> None:
         self._games = list(games)
@@ -125,12 +128,14 @@ class Tracker:
             self._rows.append(live)
         self._live[name] = live
         self._flushed[name] = now
+        self.revision += 1
         return live
 
     def _close(self, name: str, end: float, extend: bool = True) -> None:
         live = self._live.pop(name)
         live.end = max(live.end, end) if extend else end
         self._store.touch(live.id, live.end)
+        self.revision += 1
 
     def flush(self) -> None:
         now = time.time()
@@ -152,12 +157,14 @@ class Tracker:
             if r.id == session_id:
                 r.start, r.end = start, end
         self._rows.sort(key=lambda r: r.start)
+        self.revision += 1
 
     def delete_session(self, session_id: int) -> None:
         if self.is_live(session_id):
             raise ValueError("laufende Session")
         self._store.delete(session_id)
         self._rows = [r for r in self._rows if r.id != session_id]
+        self.revision += 1
 
     # --- Abfragen für die Anzeige -------------------------------------------
 
@@ -185,6 +192,20 @@ class Tracker:
 
     def sessions(self, game: str, channel: str = "") -> list[tuple[float, float]]:
         return [(r.start, r.end) for r in self._match(game, channel)]
+
+    def _live_row(self, game: str, channel: str) -> Optional[SessionRow]:
+        live = self._live.get(game)
+        return None if live is None or (channel and live.channel != channel) else live
+
+    def closed_sessions(self, game: str, channel: str = "") -> list[tuple[float, float]]:
+        """Alle Sessions außer der laufenden – ändern sich nur zusammen mit :attr:`revision`."""
+        live = self._live_row(game, channel)
+        return [(r.start, r.end) for r in self._match(game, channel) if r is not live]
+
+    def live_span(self, game: str, channel: str = "") -> Optional[tuple[float, float]]:
+        """Start und bisheriges Ende der laufenden Session (wächst jede Sekunde)."""
+        live = self._live_row(game, channel)
+        return (live.start, live.end) if live is not None else None
 
     def versioned(self, game: str, channel: str = "") -> list[tuple[str, float, float]]:
         return [(r.version, r.start, r.end) for r in self._match(game, channel)]

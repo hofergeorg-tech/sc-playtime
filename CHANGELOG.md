@@ -5,6 +5,21 @@
 Alle nennenswerten Änderungen an SC Playtime. Format angelehnt an
 [Keep a Changelog](https://keepachangelog.com/de/1.1.0/).
 
+## [1.4.1] – 2026-10-09
+
+### Verbessert
+- **Schnelleres Overlay bei langer Spielhistorie:** Die Statistik wurde jede Sekunde komplett
+  neu berechnet, und der Aufwand wuchs quadratisch mit der Zahl der Sessions (bei 5000
+  Sessions 1,5 s – jede Sekunde, über dem Spiel). Jetzt werden abgeschlossene Sessions nur
+  einmal ausgewertet und pro Sekunde nur die laufende ergänzt: 2 ms statt 1500 ms.
+- Der pulsierende Punkt zeichnet das Overlay nur noch 8- statt 16-mal pro Sekunde neu.
+
+### Sicherheit
+- Updates werden nur installiert, wenn die heruntergeladene Datei zur Prüfsumme passt, die
+  GitHub für das Release angibt.
+- Einstellungen werden zuerst vollständig in eine Zwischendatei geschrieben und dann
+  getauscht – ein Absturz beim Speichern setzt sie nicht mehr auf Standard zurück.
+
 ## [1.4.0] – 2026-10-04
 
 ### Neu

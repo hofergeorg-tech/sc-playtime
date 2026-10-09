@@ -6,6 +6,7 @@ ausschließlich die öffentliche Release-Info; es werden keine Nutzerdaten gesen
 
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 import shutil
@@ -33,6 +34,8 @@ class Release:
     notes: str
     page_url: str
     exe_url: Optional[str]
+    # SHA-256 der Datei, wie GitHub sie beim Hochladen berechnet hat (hex); None bei alten Releases
+    sha256: Optional[str] = None
 
 
 def parse_version(text: str) -> tuple[int, ...]:
@@ -58,19 +61,33 @@ def _request(url: str, accept: str) -> urllib.request.Request:
 
 def fetch_latest() -> Release:
     with urllib.request.urlopen(_request(API_URL, "application/vnd.github+json"), timeout=TIMEOUT_S) as resp:
-        data = json.load(resp)
-    exe_url = next(
-        (a["browser_download_url"] for a in data.get("assets", []) if a.get("name") == ASSET_NAME), None
-    )
+        return parse_release(json.load(resp))
+
+
+def parse_release(data: dict) -> Release:
+    asset = next((a for a in data.get("assets", []) if a.get("name") == ASSET_NAME), None)
+    digest = str((asset or {}).get("digest") or "")
     return Release(
         version=str(data.get("tag_name", "")).lstrip("vV"),
         notes=data.get("body") or "",
         page_url=data.get("html_url") or RELEASES_URL,
-        exe_url=exe_url,
+        exe_url=asset["browser_download_url"] if asset else None,
+        sha256=digest[len("sha256:"):].lower() if digest.lower().startswith("sha256:") else None,
     )
 
 
-def download(url: str) -> Path:
+def matches_checksum(path: Path, sha256: Optional[str]) -> bool:
+    """Ist die Datei genau die, die GitHub für das Release hat? (ohne Prüfsumme: ja)"""
+    if not sha256:
+        return True
+    h = hashlib.sha256()
+    with path.open("rb") as f:
+        while chunk := f.read(1 << 20):
+            h.update(chunk)
+    return h.hexdigest() == sha256.lower()
+
+
+def download(url: str, sha256: Optional[str] = None) -> Path:
     """Lädt die neue EXE in einen Temp-Ordner und gibt den Pfad zurück."""
     dest = Path(tempfile.mkdtemp(prefix="sc-playtime-update-")) / ASSET_NAME
     with urllib.request.urlopen(_request(url, "application/octet-stream"), timeout=120) as resp, \
@@ -78,7 +95,11 @@ def download(url: str) -> Path:
         while chunk := resp.read(1 << 16):
             out.write(chunk)
     if dest.stat().st_size < 1_000_000:  # eine echte Build-EXE ist deutlich größer
+        shutil.rmtree(dest.parent, ignore_errors=True)
         raise OSError("Download unvollständig")
+    if not matches_checksum(dest, sha256):
+        shutil.rmtree(dest.parent, ignore_errors=True)
+        raise OSError("Download passt nicht zur Prüfsumme des Releases")
     return dest
 
 

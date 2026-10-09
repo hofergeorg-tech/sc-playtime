@@ -393,6 +393,9 @@ class UiSmokeTest(unittest.TestCase):
             def live_channel(self, g): return "LIVE"
             def channels(self, g): return ["LIVE", "PTU"]
             def sessions(self, g, c=""): return sessions
+            revision = 0
+            def closed_sessions(self, g, c=""): return self.sessions(g, c)
+            def live_span(self, g, c=""): return None
             def versioned(self, g, c=""): return [("4.3.1", *sessions[0])]
             def rows(self, g=None): return []
             def is_live(self, i): return False
@@ -436,6 +439,9 @@ class UiSmokeTest(unittest.TestCase):
             def live_channel(self, g): return None
             def channels(self, g): return []
             def sessions(self, g, c=""): return [(first, first + 3600)]
+            revision = 0
+            def closed_sessions(self, g, c=""): return self.sessions(g, c)
+            def live_span(self, g, c=""): return None
             def current_duration(self, g, c): return 0.0
 
         overlay = Overlay(FakeTracker(), Settings(expanded=True, tab="day"), lambda: None)
@@ -464,6 +470,9 @@ class UiSmokeTest(unittest.TestCase):
             def live_channel(self, g): return None
             def channels(self, g): return ["LIVE", "PTU"]
             def sessions(self, g, c=""): return {"": [live, ptu], "LIVE": [live], "PTU": [ptu]}[c]
+            revision = 0
+            def closed_sessions(self, g, c=""): return self.sessions(g, c)
+            def live_span(self, g, c=""): return None
             def current_duration(self, g, c): return 0.0
 
         overlay = Overlay(FakeTracker(), Settings(expanded=True, channel="PTU"), lambda: None)

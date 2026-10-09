@@ -101,11 +101,11 @@ class UpdateManager(QtCore.QObject):
         self._progress.setMinimumDuration(0)
         self._progress.show()
 
-        url = rel.exe_url
+        url, sha256 = rel.exe_url, rel.sha256
 
         def run() -> None:
             try:
-                self._downloaded.emit(updater.download(url), None)
+                self._downloaded.emit(updater.download(url, sha256), None)
             except Exception as exc:
                 self._downloaded.emit(None, exc)
 

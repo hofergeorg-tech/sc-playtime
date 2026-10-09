@@ -22,7 +22,8 @@ from . import __version__, autostart, backup, dialogs, docs, export, i18n
 from .docs import resource
 from .i18n import tr
 from .settings import Settings, data_dir
-from .stats import BUCKET_COUNT, Bucket, Summary, buckets, fmt_clock, fmt_hm, max_offset, played, summarize
+from .stats import (BUCKET_COUNT, Bucket, Summary, bucket_totals, buckets, daily_totals, fmt_clock, fmt_hm,
+                    max_offset, merge_days, summarize_days)
 from .tracker import Tracker
 
 if TYPE_CHECKING:
@@ -250,6 +251,8 @@ class Overlay(QtWidgets.QWidget):
     def __init__(self, tracker: Tracker, settings: Settings, save: Callable[[], None]) -> None:
         super().__init__()
         self._tracker = tracker
+        self._stats_cache: dict[tuple[str, str], tuple[dict, list[float], Optional[float]]] = {}
+        self._stats_revision = -1
         self._s = settings
         self._save = save
         self._user_hidden = False
@@ -293,7 +296,9 @@ class Overlay(QtWidgets.QWidget):
 
         self._tick = QtCore.QTimer(self, interval=1000, timeout=self._on_tick)
         self._tick.start()
-        self._pulse = QtCore.QTimer(self, interval=60, timeout=self._on_pulse)
+        # 8 Bilder pro Sekunde reichen für das sanfte Pulsieren (früher 16 – jedes Neuzeichnen
+        # lässt Windows das durchscheinende Overlay über dem Spiel neu zusammensetzen)
+        self._pulse = QtCore.QTimer(self, interval=125, timeout=self._on_pulse)
         self._pulse.start()
 
     def _on_pulse(self) -> None:
@@ -320,12 +325,13 @@ class Overlay(QtWidgets.QWidget):
         self._channels = self._tracker.channels(game)
         channel = self._s.channel if self._s.channel in self._channels else ""
         self._filter = channel
-        sessions = self._tracker.sessions(game, channel)
-        all_sessions = self._tracker.sessions(game) if channel else sessions
         now = datetime.now()
         self._duration = self._tracker.current_duration(game, channel)
-        self._summary = summarize(sessions, now)
-        first = datetime.fromtimestamp(min(s for s, _ in all_sessions)).date() if all_sessions else now.date()
+        # Abgeschlossene Sessions nur bei Änderungen auswerten, die laufende jede Sekunde
+        days, durations, first_ts = self._stats(game, channel)
+        all_days, _, all_first_ts = self._stats(game, "") if channel else (days, durations, first_ts)
+        self._summary = summarize_days(days, durations, now)
+        first = datetime.fromtimestamp(all_first_ts).date() if all_first_ts is not None else now.date()
         if self._s.tab == "total":
             # alle Jahre seit der ersten Session (mindestens das laufende)
             kind, count = "year", now.year - first.year + 1
@@ -336,11 +342,11 @@ class Overlay(QtWidgets.QWidget):
         self._max_offset = max_offset(kind, first, now.date(), count) if self._s.tab in SCROLLABLE else 0
         self._offset = min(self._offset, self._max_offset)
         periods = buckets(kind, now.date(), count, self._offset)
-        self._bars = [(b, played(sessions, b.start, b.end)) for b in periods]
+        self._bars = list(zip(periods, bucket_totals(days, periods)))
         # Mit Channel-Filter: Gesamtzeit aller Channels als Schatten-Balken und
         # gemeinsame Skala. Sonst füllt der größte PTU-Balken (z. B. 6 min) das
         # Diagramm genauso wie ohne Filter 11 h und der Filter wirkt unsichtbar.
-        self._totals = [played(all_sessions, b.start, b.end) for b in periods]
+        self._totals = bucket_totals(all_days, periods)
 
         lay = self._layout()
         size = QtCore.QSize(W, int(lay.height))
@@ -352,6 +358,29 @@ class Overlay(QtWidgets.QWidget):
         self.on_status(tr("status", game=game, state=state, today=fmt_hm(self._summary.today)))
         self._sync_visibility()
         self.update()
+
+    def _stats(self, game: str, channel: str) -> tuple[dict, list[float], Optional[float]]:
+        """Tagessummen, Session-Längen und Beginn der ersten Session (inkl. der laufenden).
+
+        Die abgeschlossenen Sessions werden nur neu ausgewertet, wenn sich etwas an ihnen ändert
+        (Tracker-Revision); pro Sekunde kommt nur die laufende Session dazu. Früher wurde jede
+        Sekunde alles neu gerechnet – bei langer Historie kostete das Zehntelsekunden.
+        """
+        key = (game, channel)
+        if self._stats_revision != self._tracker.revision:
+            self._stats_cache.clear()
+            self._stats_revision = self._tracker.revision
+        cached = self._stats_cache.get(key)
+        if cached is None:
+            closed = self._tracker.closed_sessions(game, channel)
+            cached = (daily_totals(closed), [e - s for s, e in closed], min((s for s, _ in closed), default=None))
+            self._stats_cache[key] = cached
+        days, durations, first = cached
+        live = self._tracker.live_span(game, channel)
+        if live is None:
+            return days, durations, first
+        return (merge_days(days, daily_totals([live])), durations + [live[1] - live[0]],
+                live[0] if first is None else min(first, live[0]))
 
     def _on_tick(self) -> None:
         self._ticks += 1
