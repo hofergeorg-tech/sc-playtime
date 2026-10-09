@@ -1,9 +1,30 @@
 # Changelog
 
-🇩🇪 [Deutsche Version](CHANGELOG.md)
+🇩🇪 [Deutsch](CHANGELOG.md) · 🇫🇷 [Français](CHANGELOG.fr.md) · 🇪🇸 [Español](CHANGELOG.es.md) · 🇮🇹 [Italiano](CHANGELOG.it.md) · 🇵🇱 [Polski](CHANGELOG.pl.md) · 🇨🇳 [简体中文](CHANGELOG.zh.md)
 
 All notable changes to SC Playtime. Format based on
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
+
+## [1.5.0] – 2026-10-09
+
+### Added
+- **Crashes and server disconnects per patch:** after the game closes, SC Playtime reads
+  Star Citizen's `Game.log` and remembers whether you quit, the game crashed or the server
+  dropped the connection. The analysis shows crashes (e.g. "2 · every 6h 30m") and server
+  disconnects per patch, the sessions window an "Outcome" column. Older sessions are
+  classified at start from the saved logs (`logbackups`).
+- **Day timeline** in the analysis: one day as a timeline from 0 to 24 h with all sessions
+  in their channel color, breaks as gaps, crash (red) and server disconnect (yellow) as
+  marks; use ‹ › to move between the days you played.
+- **Combine two PCs:** Menu → Data → "Import sessions from another PC …" adds the playtime
+  from another PC's `playtime.db` (or a backup). Sessions that are already here are
+  recognised and skipped; the current data is backed up first.
+- **Since when counting started:** the TOTAL tile shows the date of the first recording at
+  the top right.
+- **Help and changelog in all seven languages** (before: German and English only).
+
+### Changed
+- The CSV/JSON export has an `ending` column (`quit`, `crash`, `server`).
 
 ## [1.4.1] – 2026-10-09
 

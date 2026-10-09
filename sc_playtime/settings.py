@@ -50,6 +50,8 @@ class Settings:
     auto_backup: bool = True  # täglich playtime.db nach backups/ sichern (7 Stände)
     hotkey_toggle: str = "Ctrl+Shift+F9"  # Overlay ein-/ausblenden, "" = keins
     hotkey_click: str = "Ctrl+Shift+F11"  # Klicks durchlassen umschalten, "" = keins
+    # Channel-Ordner von Star Citizen (…\LIVE, …\PTU), gemerkt für das Einordnen älterer Sessions
+    game_dirs: list[str] = field(default_factory=list)
 
     @classmethod
     def load(cls, path: Path) -> "Settings":

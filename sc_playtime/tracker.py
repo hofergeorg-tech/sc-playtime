@@ -9,9 +9,10 @@ from __future__ import annotations
 
 import time
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Callable, Iterable, Optional
 
-from . import process
+from . import endings, process
 from .store import SessionRow, Store
 
 # So oft wird das Session-Ende in die DB geschrieben. Stürzt das Overlay ab,
@@ -44,6 +45,9 @@ class Tracker:
         version: Callable[[int], str] = process.process_version,
         idle: Callable[[], Optional[float]] = process.idle_seconds,
         afk_s: float = 0.0,
+        game_dir: Callable[[Optional[str]], Optional[Path]] = endings.channel_dir,
+        ending: Callable[[Path, float], str] = endings.reason_for_dir,
+        on_dir: Optional[Callable[[Path], None]] = None,
     ) -> None:
         self._store = store
         self._find = find
@@ -51,6 +55,10 @@ class Tracker:
         self._image_path = image_path
         self._version = version
         self._idle = idle
+        self._game_dir = game_dir
+        self._ending = ending
+        self._on_dir = on_dir  # meldet Installationsordner (für die Nachträge beim Start)
+        self._dirs: dict[str, Path] = {}  # game name → Channel-Ordner des laufenden Spiels
         self.afk_s = afk_s  # 0 = AFK-Erkennung aus
         self._games: list[Game] = list(games)
         self._rows: list[SessionRow] = store.all()
@@ -79,9 +87,13 @@ class Tracker:
         for game in self._games:
             pid = pids.get(game.exe.lower())
             if pid is None:
-                self._paused.pop(game.name, None)
+                paused = self._paused.pop(game.name, None)
+                last = self._live.get(game.name) or (paused if paused is not None and paused.id else None)
                 if game.name in self._live:
                     self._close(game.name, now)
+                if last is not None:
+                    self._finish(game.name, last)
+                self._dirs.pop(game.name, None)
                 continue
 
             live = self._live.get(game.name)
@@ -117,8 +129,15 @@ class Tracker:
               channel: Optional[str] = None, version: Optional[str] = None) -> SessionRow:
         if start is None:
             start = min(self._start_time(pid) or now, now)
-        if channel is None:
-            channel = process.channel_from_path(self._image_path(pid))
+        if channel is None or name not in self._dirs:
+            image = self._image_path(pid)
+            if channel is None:
+                channel = process.channel_from_path(image)
+            folder = self._game_dir(image)
+            if folder is not None:
+                self._dirs[name] = folder
+                if self._on_dir is not None:
+                    self._on_dir(folder)
         if version is None:
             version = self._version(pid)
         row = self._store.open(name, channel, start, now, version)
@@ -135,6 +154,39 @@ class Tracker:
         live = self._live.pop(name)
         live.end = max(live.end, end) if extend else end
         self._store.touch(live.id, live.end)
+        self.revision += 1
+
+    def _finish(self, name: str, last: SessionRow) -> None:
+        """Das Spiel ist beendet: wie endete es? (nur Spiele mit bekanntem Log, z. B. Star Citizen)"""
+        folder = self._dirs.get(name)
+        if folder is None:
+            return
+        reason = self._ending(folder, last.start)
+        if reason:
+            last.reason = reason
+            self._store.set_reason(last.id, reason)
+            self.revision += 1
+
+    def set_reasons(self, updates: Iterable[tuple[int, str]]) -> None:
+        """Nachträglich ermittelte Ende-Angaben übernehmen (aus den gesicherten Logs)."""
+        by_id = {r.id: r for r in self._rows}
+        changed = False
+        for sid, reason in updates:
+            row = by_id.get(sid)
+            if row is not None and not row.reason:
+                row.reason = reason
+                self._store.set_reason(sid, reason)
+                changed = True
+        if changed:
+            self.revision += 1
+
+    def reload(self) -> None:
+        """Nach dem Zusammenführen: Sessions neu aus der DB lesen (laufende bleiben verknüpft)."""
+        live_ids = {r.id: name for name, r in self._live.items()}
+        self._rows = self._store.all()
+        for r in self._rows:
+            if r.id in live_ids:
+                self._live[live_ids[r.id]] = r
         self.revision += 1
 
     def flush(self) -> None:
@@ -184,7 +236,7 @@ class Tracker:
 
     def rows(self, game: Optional[str] = None) -> list[SessionRow]:
         """Alle Sessions (Kopien), ältere zuerst; optional nur ein Spiel."""
-        return [SessionRow(r.id, r.game, r.channel, r.start, r.end, r.version)
+        return [SessionRow(r.id, r.game, r.channel, r.start, r.end, r.version, r.reason)
                 for r in self._rows if game is None or r.game == game]
 
     def _match(self, game: str, channel: str) -> list[SessionRow]:
@@ -207,8 +259,9 @@ class Tracker:
         live = self._live_row(game, channel)
         return (live.start, live.end) if live is not None else None
 
-    def versioned(self, game: str, channel: str = "") -> list[tuple[str, float, float]]:
-        return [(r.version, r.start, r.end) for r in self._match(game, channel)]
+    def versioned(self, game: str, channel: str = "") -> list[tuple[str, float, float, str]]:
+        """(Patch, Start, Ende, wie beendet) je Session."""
+        return [(r.version, r.start, r.end, r.reason) for r in self._match(game, channel)]
 
     def current_duration(self, game: str, channel: str = "") -> float:
         """Laufende Session, sonst Dauer der letzten (für die Offline-Anzeige)."""

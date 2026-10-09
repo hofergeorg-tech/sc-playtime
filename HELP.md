@@ -1,6 +1,6 @@
 # SC Playtime – Help
 
-🇩🇪 [Deutsche Version](HILFE.md)
+🇩🇪 [Deutsch](HILFE.md) · 🇫🇷 [Français](HELP.fr.md) · 🇪🇸 [Español](HELP.es.md) · 🇮🇹 [Italiano](HELP.it.md) · 🇵🇱 [Polski](HELP.pl.md) · 🇨🇳 [简体中文](HELP.zh.md)
 
 SC Playtime is a small overlay that tracks how long you play Star Citizen (or other
 games). It sits as a slim panel on top of the game and shows the running session and
@@ -14,7 +14,7 @@ your statistics. It runs on **Windows** and **Linux**.
 - [Language](#language)
 - [Multiple games](#multiple-games)
 - [Channels (LIVE, PTU, …)](#channels-live-ptu-)
-- [Analysis (heatmap and patches)](#analysis-heatmap-and-patches)
+- [Analysis (heatmap, day timeline, patches)](#analysis-heatmap-day-timeline-patches)
 - [Editing sessions](#editing-sessions)
 - [AFK detection](#afk-detection)
 - [Hotkeys](#hotkeys)
@@ -76,7 +76,7 @@ Clicking the header of the overlay expands or collapses the statistics.
   | WEEK | since Monday 0:00 |
   | MONTH | since the 1st of the month |
   | YEAR | since January 1st |
-  | TOTAL | everything ever recorded |
+  | TOTAL | everything ever recorded; at the top right the date of the first recording (since when counting started) |
   | STREAK | consecutive days with at least 1 minute of playtime. Not having played yet today does not break the streak. |
 
 - **Chart** with the tabs:
@@ -129,7 +129,7 @@ start.
 | Show/Hide overlay | tray menu only |
 | Show statistics | same as clicking the header |
 | Game | choose the displayed game, add or remove games |
-| Analysis … | heatmap and playtime per patch, see [Analysis](#analysis-heatmap-and-patches) |
+| Analysis … | heatmap, day timeline and playtime per patch, see [Analysis](#analysis-heatmap-day-timeline-patches) |
 | Edit sessions … | correct or delete sessions, see [Editing sessions](#editing-sessions) |
 | BACKGROUND (slider) | opacity of the dark background only; text stays fully visible |
 | OVERALL OPACITY (slider) | opacity of the whole overlay (20–100 %) |
@@ -147,7 +147,7 @@ start.
 | Check for updates | check GitHub right away, see [Updates](#updates) |
 | Check for updates automatically | check at start and every 12 hours (default: on) |
 | ⬆ Install update … | appears at the top when a new version is available |
-| Data | export as CSV/JSON, backups, data folder, see [Export and backup](#export-and-backup) |
+| Data | export as CSV/JSON, backups, sessions from another PC, data folder, see [Export and backup](#export-and-backup) |
 | Quit | close the overlay; the running session is saved first |
 
 ## Colors
@@ -180,9 +180,8 @@ Tip: for good readability combine light backgrounds with dark text and vice vers
 - 🇬🇧 **English**
 - 🇫🇷 **Français**, 🇪🇸 **Español**, 🇮🇹 **Italiano**, 🇵🇱 **Polski**, 🇨🇳 **简体中文**
 
-The change applies immediately to the overlay, menu, messages, help and "What's new?".
-Help and changelog are available in German and English; the other languages show them
-in English.
+The change applies immediately to the overlay, menu, messages, help and "What's new?" –
+help and changelog are available in all seven languages.
 
 ## Multiple games
 
@@ -208,7 +207,7 @@ The channel is read from the installation folder:
 Likewise EPTU, HOTFIX and TECH-PREVIEW. Every session remembers its channel, so the
 statistics can be shown per channel or combined ("ALL").
 
-## Analysis (heatmap and patches)
+## Analysis (heatmap, day timeline, patches)
 
 **Menu → Analysis …** opens a window for the displayed game and the selected channel
 filter:
@@ -216,17 +215,42 @@ filter:
 - **When do you play?** – a heatmap with the weekdays as rows and the 24 hours as
   columns. The brighter a cell, the more you played at that time. Hover over a cell for
   the exact playtime; below it shows your most played weekday and hour.
-- **Playtime per patch** – playtime, share, number of sessions and period for each Star
-  Citizen version (e.g. 4.3.1). The patch is read from `build_manifest.id` or `Game.log`
-  in the installation folder (e.g. `…\StarCitizen\LIVE\`) when a session starts.
-  Sessions from before version 1.4 and games without these files are listed as
+- **Day timeline** – one day as a timeline from 0 to 24 h: every session is a bar in the
+  color of its channel, gaps are breaks or AFK time. A **red mark** at the end of a
+  session means a crash, a **yellow** one a server disconnect. Use ‹ › to move between
+  the days you played; hover over a bar for time, length, channel, patch and how the
+  session ended.
+- **Playtime per patch** – playtime, share, number of sessions, **crashes**, **server
+  disconnects** and period for each Star Citizen version (e.g. 4.3.1). For crashes it also
+  shows how often they happened, e.g. "2 · every 6h 30m" – so you can see whether a patch
+  is more stable than the previous one. The patch is read from `build_manifest.id` or
+  `Game.log` in the installation folder (e.g. `…\StarCitizen\LIVE\`) when a session
+  starts. Sessions from before version 1.4 and games without these files are listed as
   "unknown".
+
+### Crashes and server disconnects
+
+When Star Citizen closes, SC Playtime reads the end of `Game.log` (read only):
+
+| In the log | Meaning |
+| --- | --- |
+| `<SystemQuit>` with "Quit via console command" / "User closed the application" | **quit** – you stopped playing yourself |
+| `<SystemQuit>` with another reason, e.g. "Back-end services are unresponsive" | **server disconnect** – connection to the server/backend lost |
+| no `<SystemQuit>` line, but a hand-over to the crash collector | **crash** |
+
+Older sessions are classified when SC Playtime starts: Star Citizen keeps the log of every
+game start in its `logbackups` folder, and the matching log is found by the time the
+session ended. Sessions without a log, games other than Star Citizen and sessions that
+ended in an AFK break can't be classified. The installation is found automatically (the
+default folder or the folder the game ran from).
 
 ## Editing sessions
 
 **Menu → Edit sessions …** lists all sessions of the displayed game, newest first. Use
 it to fix mistakes, e.g. when the PC was in standby while the game was open:
 
+- The **Outcome** column shows how the session ended: quit, **crash** (red) or **server
+  disconnect** (yellow), see [Crashes and server disconnects](#crashes-and-server-disconnects).
 - **Edit …** (or double-click): change start and end.
 - **Delete**: remove one or more selected sessions (Ctrl/Shift for multiple selection).
   This cannot be undone – [back up](#export-and-backup) first if in doubt.
@@ -267,16 +291,33 @@ Under **Menu → Data**:
 
 | Entry | Function |
 | --- | --- |
-| Export as CSV … | all sessions of all games as a table, e.g. for Excel (columns: game, channel, patch, start, end, duration in seconds and minutes) |
+| Export as CSV … | all sessions of all games as a table, e.g. for Excel (columns: game, channel, patch, start, end, duration in seconds and minutes, ending `quit`/`crash`/`server`) |
 | Export as JSON … | the same as JSON, times additionally with time zone and as Unix timestamps |
 | Back up now | create a copy of the database right away |
 | Daily automatic backup (7 days) | create a copy once a day; the last 7 are kept (default: on) |
 | Open backup folder | folder `backups` inside the data folder |
+| Import sessions from another PC … | add the playtime of a second PC, see below |
 | Open data folder | folder with database and settings |
 
 **Restoring a backup:** quit the overlay, replace `playtime.db` in the data folder with
 the file you want from `backups` (e.g. copy `playtime-2026-10-04.db` and rename it to
 `playtime.db`), start the overlay again.
+
+### Combining two PCs
+
+If you play on several PCs, add the other PC's playtime like this:
+
+1. On the other PC, take the file `playtime.db` from the data folder (or a backup from
+   `backups`), e.g. via USB stick or a cloud folder.
+2. Here, choose **Menu → Data → Import sessions from another PC …** and pick the file.
+3. SC Playtime shows how many sessions are new and how many are already here, and after
+   you confirm imports only the new ones. The current data is backed up first.
+
+A session counts as "already here" if it overlaps in time with a session of the same
+game here – the same game doesn't run on two PCs at once. That's why you can import the
+same file again later without anything being counted twice. Channel, patch and ending
+are imported too. Games that don't exist here yet are named: their sessions are saved and
+show up as soon as you add the game with the same name.
 
 ## How time is counted
 
@@ -290,18 +331,20 @@ the file you want from `backups` (e.g. copy `playtime-2026-10-04.db` and rename 
 
 ## Updates
 
-The current version is shown at the top of the menu (e.g. "SC PLAYTIME 1.3.0").
+The current version is shown at the top of the menu (e.g. "SC PLAYTIME 1.5.0").
 
 - **Automatic:** with "Check for updates automatically" on, SC Playtime checks GitHub
   for a new version shortly after start and then every 12 hours. If there is one, a
   notification appears at the tray icon and the entry **"⬆ Install update …"** appears at
   the top of the menu.
 - **Manual:** Menu → "Check for updates".
-- **Install:** after confirming, the new version is downloaded. The overlay saves the
-  running session, exits, replaces the program file and restarts. Afterwards "What's
-  new?" is shown once. Settings and playtimes are kept.
-- When SC Playtime runs from source instead of as a built program, "Install" opens the
-  release page in your browser instead.
+- **Install:** after confirming, the new version is downloaded and compared with the
+  checksum GitHub reports for the release – if it doesn't match, nothing is installed.
+  The overlay saves the running session, exits, replaces the program file and restarts.
+  Afterwards "What's new?" is shown once. Settings and playtimes are kept.
+- When SC Playtime runs from source (`run.pyw`) instead of as a built program, "Install"
+  opens the release page in your browser instead – there is no program file to replace.
+  For one-click updates, use the EXE and turn autostart off and on again in the menu.
 
 All versions are also available at
 <https://github.com/hofergeorg-tech/sc-playtime/releases>.
@@ -328,7 +371,8 @@ python3 -m venv .venv
 Notes:
 
 - **Star Citizen under Wine/Proton/Lutris** is detected just like on Windows – including
-  the channel (LIVE, PTU, …), because the game's Windows path is read as well.
+  the channel (LIVE, PTU, …), because the game's Windows path is read as well. Crashes
+  and server disconnects are only detected on Windows.
 - **Native Linux games:** add them via "Add game …" with the game's program (set the
   file filter to "All files"). They are recognised by their program name.
 - **Wayland:** under Wayland, windows may neither choose their position nor stay on top.
@@ -349,8 +393,8 @@ Everything is stored locally (Menu → "Open data folder"):
 
 | File | Content |
 | --- | --- |
-| `playtime.db` | SQLite database with all sessions (game, channel, start, end, patch) |
-| `settings.json` | position, transparency, colors, language, game list, … |
+| `playtime.db` | SQLite database with all sessions (game, channel, start, end, patch, ending) |
+| `settings.json` | position, transparency, colors, language, game list, Star Citizen folders found, … |
 | `backups/` | daily copies of the database, see [Export and backup](#export-and-backup) |
 
 Your playtimes and settings never leave your PC. The only internet connection is the
@@ -398,4 +442,11 @@ that the file really was built from this repository:
 
 **Does this interfere with anti-cheat?**
 SC Playtime only reads the process list and the game's start time using regular
-operating system functions, just like the Task Manager. It does not access the game.
+operating system functions, just like the Task Manager, and after the game has closed
+the text file `Game.log`. It does not access the game.
+
+**A session has no ending.**
+The log showed neither a normal end nor a crash – e.g. when Star Citizen was ended via
+the Task Manager, the power went out, the session ended in an AFK break or there is no
+log for it anymore. The classification is only used for the statistics and doesn't
+change the playtime.

@@ -6,10 +6,11 @@ import os
 import sqlite3
 import sys
 from datetime import date
+from pathlib import Path
 
 from PySide6 import QtCore, QtGui, QtWidgets
 
-from . import __version__, backup, docs, i18n
+from . import __version__, backup, docs, endings, i18n
 from .hotkeys import Hotkeys
 from .settings import Settings, data_dir
 from .store import Store
@@ -55,7 +56,19 @@ def main() -> int:
     i18n.set_language(settings.language)
     apply_qt_language()
     store = Store(folder / "playtime.db")
-    tracker = Tracker(store, settings.game_list(), afk_s=settings.afk_minutes * 60.0)
+
+    def remember_dir(path: Path) -> None:
+        if str(path) not in settings.game_dirs:
+            settings.game_dirs.append(str(path))
+            settings.save(settings_path)
+
+    tracker = Tracker(store, settings.game_list(), afk_s=settings.afk_minutes * 60.0, on_dir=remember_dir)
+    # Ältere Sessions ohne Ende-Angabe (Absturz/Server/beendet) aus Star Citizens gesicherten Logs nachtragen
+    try:
+        dirs = [Path(d) for d in settings.game_dirs] + endings.default_dirs()
+        tracker.set_reasons(endings.backfill(tracker.rows(), dirs))
+    except (OSError, sqlite3.Error):
+        pass
     tracker.poll()
 
     overlay = Overlay(tracker, settings, lambda: settings.save(settings_path))
@@ -63,6 +76,12 @@ def main() -> int:
 
     backups = backup.backup_dir(folder)
     overlay.backup_now = lambda: backup.run(store, backups, date.today(), force=True)
+
+    def merge_rows(rows: list) -> None:
+        store.insert(rows)
+        tracker.reload()
+
+    overlay.merge_rows = merge_rows
 
     def daily_backup() -> None:
         if settings.auto_backup:

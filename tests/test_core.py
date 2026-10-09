@@ -142,8 +142,8 @@ class ExportTest(unittest.TestCase):
 
         rows = [SessionRow(1, "Star Citizen", "LIVE", ts(2026, 9, 28, 18), ts(2026, 9, 28, 19, 30), "4.3.1")]
         lines = to_csv(rows).splitlines()
-        self.assertEqual(lines[0], "game;channel;version;start;end;duration_s;duration_min")
-        self.assertEqual(lines[1], "Star Citizen;LIVE;4.3.1;2026-09-28 18:00:00;2026-09-28 19:30:00;5400;90")
+        self.assertEqual(lines[0], "game;channel;version;start;end;duration_s;duration_min;ending")
+        self.assertEqual(lines[1], "Star Citizen;LIVE;4.3.1;2026-09-28 18:00:00;2026-09-28 19:30:00;5400;90;")
         self.assertIn(",LIVE,", to_csv(rows, ",").splitlines()[1])
         data = json.loads(to_json(rows))["sessions"][0]
         self.assertEqual(data["duration_s"], 5400)

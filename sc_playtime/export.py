@@ -10,7 +10,8 @@ from typing import Sequence
 
 from .store import SessionRow
 
-FIELDS = ("game", "channel", "version", "start", "end", "duration_s", "duration_min")
+# ending: quit / crash / server, leer = unbekannt
+FIELDS = ("game", "channel", "version", "start", "end", "duration_s", "duration_min", "ending")
 
 
 def _local(ts: float) -> str:
@@ -27,7 +28,8 @@ def to_csv(rows: Sequence[SessionRow], delimiter: str = ";") -> str:
     w.writerow(FIELDS)
     for r in rows:
         seconds = int(round(r.end - r.start))
-        w.writerow([r.game, r.channel, r.version, _local(r.start), _local(r.end), seconds, round(seconds / 60)])
+        w.writerow([r.game, r.channel, r.version, _local(r.start), _local(r.end), seconds, round(seconds / 60),
+                    r.reason])
     return buf.getvalue()
 
 
@@ -43,6 +45,7 @@ def to_json(rows: Sequence[SessionRow]) -> str:
             "start_unix": r.start,
             "end_unix": r.end,
             "duration_s": int(round(r.end - r.start)),
+            "ending": r.reason,
         }
         for r in rows
     ]

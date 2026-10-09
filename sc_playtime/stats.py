@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta
-from typing import Sequence
+from typing import Optional, Sequence
 
 from .i18n import tr, tr_list
 
@@ -113,20 +113,30 @@ class PatchStats:
     sessions: int
     first: float
     last: float
+    crashes: int = 0  # Spiel abgestürzt
+    server: int = 0  # vom Server/Backend getrennt
+
+    def hours_per_crash(self) -> Optional[float]:
+        """Spielstunden je Absturz (``None`` ohne Absturz)."""
+        return self.total / 3600 / self.crashes if self.crashes else None
 
 
 def _version_key(v: str) -> tuple[int, ...]:
     return tuple(int(p) for p in v.split(".") if p.isdigit())
 
 
-def by_version(rows: Sequence[tuple[str, float, float]]) -> list[PatchStats]:
-    """Spielzeit je Patch, neuester zuerst; Unbekanntes ans Ende."""
-    groups: dict[str, list[tuple[float, float]]] = {}
-    for version, s, e in rows:
-        groups.setdefault(version, []).append((s, e))
+def by_version(rows: Sequence[tuple]) -> list[PatchStats]:
+    """Spielzeit je Patch, neuester zuerst; Unbekanntes ans Ende.
+
+    Zeilen: ``(Patch, Start, Ende)`` oder ``(Patch, Start, Ende, wie beendet)``.
+    """
+    groups: dict[str, list[tuple[float, float, str]]] = {}
+    for version, s, e, *rest in rows:
+        groups.setdefault(version, []).append((s, e, rest[0] if rest else ""))
     out = [
-        PatchStats(v, sum(e - s for s, e in ss), sum(1 for s, e in ss if e - s >= STREAK_MIN_S),
-                   min(s for s, _ in ss), max(e for _, e in ss))
+        PatchStats(v, sum(e - s for s, e, _ in ss), sum(1 for s, e, _ in ss if e - s >= STREAK_MIN_S),
+                   min(s for s, _, _ in ss), max(e for _, e, _ in ss),
+                   sum(1 for *_, r in ss if r == "crash"), sum(1 for *_, r in ss if r == "server"))
         for v, ss in groups.items()
     ]
     return sorted(out, key=lambda p: (p.version != "", _version_key(p.version)), reverse=True)

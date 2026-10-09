@@ -1,9 +1,31 @@
 # Changelog
 
-🇬🇧 [English version](CHANGELOG.en.md)
+🇬🇧 [English](CHANGELOG.en.md) · 🇫🇷 [Français](CHANGELOG.fr.md) · 🇪🇸 [Español](CHANGELOG.es.md) · 🇮🇹 [Italiano](CHANGELOG.it.md) · 🇵🇱 [Polski](CHANGELOG.pl.md) · 🇨🇳 [简体中文](CHANGELOG.zh.md)
 
 Alle nennenswerten Änderungen an SC Playtime. Format angelehnt an
 [Keep a Changelog](https://keepachangelog.com/de/1.1.0/).
+
+## [1.5.0] – 2026-10-09
+
+### Neu
+- **Abstürze und Server-Abbrüche je Patch:** SC Playtime liest nach dem Spielende das
+  `Game.log` von Star Citizen und merkt sich, ob du selbst beendet hast, das Spiel
+  abgestürzt ist oder der Server die Verbindung getrennt hat. Die Auswertung zeigt je Patch
+  Abstürze (z. B. „2 · alle 6h 30m“) und Server-Abbrüche, das Sessions-Fenster eine Spalte
+  „Ausgang“. Ältere Sessions werden beim Start aus den gesicherten Logs (`logbackups`)
+  nachträglich eingeordnet.
+- **Tagesverlauf** in der Auswertung: ein Tag als Zeitstrahl von 0 bis 24 Uhr mit allen
+  Sessions in Channel-Farbe, Pausen als Lücken, Absturz (rot) und Server-Abbruch (gelb) als
+  Marke; mit ‹ › zwischen den Spieltagen blättern.
+- **Zwei PCs zusammenführen:** Menü → Daten → „Sessions eines anderen PCs übernehmen …“
+  holt die Spielzeit aus der `playtime.db` (oder einer Sicherung) eines anderen PCs dazu.
+  Schon vorhandene Sessions werden erkannt und übersprungen, vorher wird gesichert.
+- **Seit wann gezählt wird:** Die GESAMT-Kachel zeigt oben rechts das Datum der ersten
+  Aufzeichnung.
+- **Hilfe und Changelog in allen sieben Sprachen** (bisher nur Deutsch und Englisch).
+
+### Geändert
+- Der CSV/JSON-Export enthält eine Spalte `ending` (`quit`, `crash`, `server`).
 
 ## [1.4.1] – 2026-10-09
 

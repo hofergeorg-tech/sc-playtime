@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import ctypes
 import math
+import sqlite3
 import sys
 import time
 from dataclasses import dataclass, field
@@ -18,7 +19,7 @@ from typing import TYPE_CHECKING, Callable, Optional
 
 from PySide6 import QtCore, QtGui, QtWidgets
 
-from . import __version__, autostart, backup, dialogs, docs, export, i18n
+from . import __version__, autostart, backup, dialogs, docs, export, i18n, merge
 from .docs import resource
 from .i18n import tr
 from .settings import Settings, data_dir
@@ -253,6 +254,7 @@ class Overlay(QtWidgets.QWidget):
         self._tracker = tracker
         self._stats_cache: dict[tuple[str, str], tuple[dict, list[float], Optional[float]]] = {}
         self._stats_revision = -1
+        self._first_ts: Optional[float] = None
         self._s = settings
         self._save = save
         self._user_hidden = False
@@ -280,6 +282,7 @@ class Overlay(QtWidgets.QWidget):
         self.updates: Optional["UpdateManager"] = None  # von app.py gesetzt
         # von app.py gesetzt: Sicherung jetzt anlegen (→ Pfad), Tastenkürzel neu registrieren (→ id: ok)
         self.backup_now: Optional[Callable[[], Path]] = None
+        self.merge_rows: Optional[Callable[[list], None]] = None  # Sessions eines anderen PCs einfügen
         self.apply_hotkeys: Callable[[], dict[int, bool]] = lambda: {}
 
         self.setWindowTitle("SC Playtime")
@@ -330,6 +333,7 @@ class Overlay(QtWidgets.QWidget):
         # Abgeschlossene Sessions nur bei Änderungen auswerten, die laufende jede Sekunde
         days, durations, first_ts = self._stats(game, channel)
         all_days, _, all_first_ts = self._stats(game, "") if channel else (days, durations, first_ts)
+        self._first_ts = first_ts  # erste Aufzeichnung (mit Filter: dieses Channels) für die GESAMT-Kachel
         self._summary = summarize_days(days, durations, now)
         first = datetime.fromtimestamp(all_first_ts).date() if all_first_ts is not None else now.date()
         if self._s.tab == "total":
@@ -682,12 +686,31 @@ class Overlay(QtWidgets.QWidget):
                 p.drawPath(path)
                 p.setPen(QtGui.QPen(rgba(CYAN, 200), 2))
                 p.drawLine(QPointF(r.left() + 1, r.top() + 12), QPointF(r.left() + 1, r.bottom() - 10))
-            p.setFont(font(8, QtGui.QFont.Weight.DemiBold, 1.8))
+            label_font = font(8, QtGui.QFont.Weight.DemiBold, 1.8)
+            p.setFont(label_font)
             p.setPen(label_color)
             p.drawText(QPointF(r.left() + 9, r.top() + 16), label)
+            if label == tr("hud.total") and self._first_ts is not None:
+                self._paint_since(p, r, QtGui.QFontMetricsF(label_font).horizontalAdvance(label), label_color)
             p.setFont(font(15, QtGui.QFont.Weight.DemiBold))
             p.setPen(fg)
             p.drawText(QPointF(r.left() + 9, r.top() + 36), value)
+
+    def _paint_since(self, p: QtGui.QPainter, r: QRectF, label_width: float, color: QtGui.QColor) -> None:
+        """Datum der ersten Aufzeichnung klein rechts in der Kopfzeile der GESAMT-Kachel – seit wann gezählt wird.
+        Passt das volle Datum nicht neben das Wort, das kürzere (ohne Jahr) bzw. gar keins."""
+        first = datetime.fromtimestamp(self._first_ts)
+        f = font(8, QtGui.QFont.Weight.Normal)
+        fm = QtGui.QFontMetricsF(f)
+        room = r.width() - 9 - label_width - 6 - 7
+        text = next((t for t in (first.strftime(tr("fmt.date_compact")), first.strftime(tr("fmt.date_short")))
+                     if fm.horizontalAdvance(t) <= room), None)
+        if text is None:
+            return
+        p.setFont(f)
+        p.setPen(color)
+        p.drawText(QRectF(r.left(), r.top() + 6, r.width() - 7, 12),
+                   Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter, text)
 
     def _paint_tabs(self, p: QtGui.QPainter, lay: _Layout) -> None:
         wide = font(9, QtGui.QFont.Weight.DemiBold, 2)
@@ -973,13 +996,16 @@ class Overlay(QtWidgets.QWidget):
         self._check(menu, tr("menu.auto_backup"), self._s.auto_backup, lambda on: self._set("auto_backup", on))
         menu.addAction(tr("menu.backup_folder"), lambda: _open_folder(backup.backup_dir(data_dir())))
         menu.addSeparator()
+        if self.merge_rows is not None:
+            menu.addAction(tr("menu.merge"), self._merge)
         menu.addAction(tr("menu.data_folder"), lambda: _open_folder(data_dir()))
 
     # --- Auswertung, Sessions, Daten -----------------------------------------
 
     def show_stats(self) -> None:
+        rows = [r for r in self._tracker.rows(self._game) if not self._filter or r.channel == self._filter]
         dialogs.show_stats(self._game, self._filter, self._tracker.sessions(self._game, self._filter),
-                           self._tracker.versioned(self._game, self._filter), app_icon())
+                           self._tracker.versioned(self._game, self._filter), app_icon(), rows)
 
     def show_sessions(self) -> None:
         dialogs.show_sessions(self._tracker, self._game, self.refresh, app_icon())
@@ -1001,6 +1027,40 @@ class Overlay(QtWidgets.QWidget):
             QtWidgets.QMessageBox.warning(None, tr("export.title"), tr("export.failed", error=exc))
             return
         QtWidgets.QMessageBox.information(None, tr("export.title"), tr("export.done", count=len(rows), path=path))
+
+    def _merge(self) -> None:
+        """Sessions eines anderen PCs (dessen playtime.db oder eine Sicherung) übernehmen."""
+        path, _ = QtWidgets.QFileDialog.getOpenFileName(self, tr("merge.title"), "", tr("merge.filter"))
+        if not path or self.merge_rows is None:
+            return
+        if Path(path).resolve() == (data_dir() / "playtime.db").resolve():
+            QtWidgets.QMessageBox.warning(None, tr("merge.title"), tr("merge.same"))
+            return
+        try:
+            plan = merge.plan(self._tracker.rows(), merge.read_sessions(Path(path)))
+        except (OSError, sqlite3.Error) as exc:
+            QtWidgets.QMessageBox.warning(None, tr("merge.title"), tr("merge.failed", error=exc))
+            return
+        if not plan.new:
+            QtWidgets.QMessageBox.information(None, tr("merge.title"), tr("merge.nothing", duplicates=plan.duplicates))
+            return
+        text = tr("merge.confirm", count=len(plan.new), duplicates=plan.duplicates)
+        known = {g.name for g in self._s.game_list()}
+        missing = [g for g in plan.games() if g not in known]
+        if missing:
+            text += "\n\n" + tr("merge.missing_games", games=", ".join(missing))
+        answer = QtWidgets.QMessageBox.question(None, tr("merge.title"), text)
+        if answer != QtWidgets.QMessageBox.StandardButton.Yes:
+            return
+        try:
+            if self.backup_now is not None:
+                self.backup_now()  # Stand vorher sichern, falls man es sich anders überlegt
+            self.merge_rows(plan.new)
+        except (OSError, sqlite3.Error) as exc:
+            QtWidgets.QMessageBox.warning(None, tr("merge.title"), tr("merge.failed", error=exc))
+            return
+        self.refresh()
+        QtWidgets.QMessageBox.information(None, tr("merge.title"), tr("merge.done", count=len(plan.new)))
 
     def _backup_now(self) -> None:
         try:

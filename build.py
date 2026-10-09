@@ -26,7 +26,7 @@ EXCLUDES = [
     "PySide6.QtOpenGL", "PySide6.QtOpenGLWidgets", "tkinter", "unittest",
 ]
 # Hilfe/Changelog je Sprache (Menü → Hilfe / Was ist neu?)
-DOCS = ["HILFE.md", "HELP.md", "CHANGELOG.md", "CHANGELOG.en.md"]
+DOCS = sorted(p.name for p in ROOT.glob("*.md") if p.name.startswith(("HILFE", "HELP", "CHANGELOG")))
 
 
 def make_icon(path: Path) -> None:

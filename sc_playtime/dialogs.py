@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import date, datetime, timedelta
 from typing import Callable, Optional, Sequence
 
 from PySide6 import QtCore, QtGui, QtWidgets
@@ -206,6 +206,95 @@ class HeatmapWidget(QtWidgets.QWidget):
         QtWidgets.QToolTip.showText(e.globalPosition().toPoint(), text, self)
 
 
+_ENDING_COLORS = {"crash": "#ff6e6e", "server": "#ffc45a"}  # Marken im Zeitstrahl
+_ENDING_TEXT = {"crash": "#d63c3c", "server": "#b87800"}  # Schrift in Tabellen (auf hellem Grund lesbar)
+
+
+def ending_text(reason: str) -> str:
+    return tr(f"end.{reason}") if reason in ("quit", "crash", "server") else ""
+
+
+def day_segments(rows: Sequence, day: date) -> list[tuple[float, float, object]]:
+    """Teile der Sessions, die auf ``day`` fallen, als (Startstunde, Endstunde, Session) – 0…24."""
+    start = datetime.combine(day, datetime.min.time()).timestamp()
+    end = datetime.combine(day + timedelta(days=1), datetime.min.time()).timestamp()
+    length = end - start  # 23/25 h an Tagen der Zeitumstellung
+    return [(max(0.0, (r.start - start) / length * 24), min(24.0, (r.end - start) / length * 24), r)
+            for r in rows if r.end > start and r.start < end]
+
+
+def play_days(rows: Sequence) -> list[date]:
+    """Alle Tage mit Spielzeit, aufsteigend (Sessions über Mitternacht zählen für beide Tage)."""
+    days: set[date] = set()
+    for r in rows:
+        d = datetime.fromtimestamp(r.start).date()
+        last = datetime.fromtimestamp(max(r.start, r.end - 1)).date()
+        while d <= last:
+            days.add(d)
+            d += timedelta(days=1)
+    return sorted(days)
+
+
+class TimelineWidget(QtWidgets.QWidget):
+    """Ein Tag als Zeitstrahl 0–24 Uhr: Sessions als Balken in Channel-Farbe, Lücken = Pausen/AFK,
+    am Ende eine rote (Absturz) bzw. gelbe (Server-Abbruch) Marke."""
+
+    LEFT, TOP, BAR_H = 8, 18, 26
+
+    def __init__(self) -> None:
+        super().__init__()
+        self._segments: list[tuple[float, float, object]] = []
+        self.setMouseTracking(True)
+        self.setMinimumHeight(self.TOP + self.BAR_H + 6)
+
+    def set_day(self, rows: Sequence, day: date) -> None:
+        self._segments = day_segments(rows, day)
+        self.update()
+
+    def _x(self, hour: float) -> float:
+        return self.LEFT + hour / 24 * (self.width() - 2 * self.LEFT)
+
+    def paintEvent(self, _e: QtGui.QPaintEvent) -> None:
+        from .ui import CHANNEL_COLORS, CYAN  # ui importiert dialogs – erst hier laden
+
+        p = QtGui.QPainter(self)
+        p.setRenderHint(QtGui.QPainter.RenderHint.Antialiasing)
+        small = QtGui.QFont(self.font())
+        small.setPixelSize(10)
+        p.setFont(small)
+        track = QtCore.QRectF(self._x(0), self.TOP, self._x(24) - self._x(0), self.BAR_H)
+        p.fillRect(track, QtGui.QColor(95, 208, 255, 14))
+        for h in range(0, 25, 3):
+            x = self._x(h)
+            p.setPen(QtGui.QColor(95, 208, 255, 40))
+            p.drawLine(QtCore.QPointF(x, self.TOP), QtCore.QPointF(x, self.TOP + self.BAR_H))
+            p.setPen(QtGui.QColor("#6f93a8"))
+            p.drawText(QtCore.QRectF(x - 20, 0, 40, self.TOP - 4),
+                       Qt.AlignmentFlag.AlignHCenter | Qt.AlignmentFlag.AlignBottom, f"{h:02d}")
+        for a, b, r in self._segments:
+            c = CHANNEL_COLORS.get(r.channel, CYAN)
+            rect = QtCore.QRectF(self._x(a), self.TOP + 3, max(2.0, self._x(b) - self._x(a)), self.BAR_H - 6)
+            p.fillRect(rect, QtGui.QColor(c[0], c[1], c[2], 200))
+            # Marke nur, wenn die Session an diesem Tag endet (nicht erst nach Mitternacht)
+            if r.reason in _ENDING_COLORS and b < 24:
+                p.fillRect(QtCore.QRectF(rect.right() - 3, self.TOP, 4, self.BAR_H), QtGui.QColor(_ENDING_COLORS[r.reason]))
+        p.end()
+
+    def mouseMoveEvent(self, e: QtGui.QMouseEvent) -> None:
+        x = e.position().x()
+        hit = next((r for a, b, r in self._segments if self._x(a) - 2 <= x <= self._x(b) + 2), None)
+        if hit is None:
+            QtWidgets.QToolTip.hideText()
+            return
+        parts = [f"{_clock(hit.start)}–{_clock(hit.end)}", fmt_hm(hit.end - hit.start), hit.channel, hit.version,
+                 ending_text(hit.reason)]
+        QtWidgets.QToolTip.showText(e.globalPosition().toPoint(), "  ·  ".join(p for p in parts if p), self)
+
+
+def _clock(ts: float) -> str:
+    return datetime.fromtimestamp(ts).strftime("%H:%M")
+
+
 def peak_text(grid: list[list[float]]) -> str:
     """Meistgespielter Wochentag und meistgespielte Stunde."""
     days = [sum(row) for row in grid]
@@ -219,7 +308,7 @@ def peak_text(grid: list[list[float]]) -> str:
 
 class StatsDialog(QtWidgets.QDialog):
     def __init__(self, game: str, channel: str, sessions: Sequence[tuple[float, float]],
-                 versioned: Sequence[tuple[str, float, float]], icon: QtGui.QIcon) -> None:
+                 versioned: Sequence[tuple], icon: QtGui.QIcon, rows: Sequence = ()) -> None:
         super().__init__(None, Qt.WindowType.Window)
         self.setWindowTitle(tr("stats.title", game=game))
         self.setWindowIcon(icon)
@@ -233,20 +322,64 @@ class StatsDialog(QtWidgets.QDialog):
         lay.addWidget(HeatmapWidget(grid))
         lay.addWidget(QtWidgets.QLabel(peak_text(grid)))
 
+        # Tagesverlauf: ein Tag als Zeitstrahl, blättern zwischen Tagen mit Spielzeit
+        self._rows = list(rows)
+        self._days = play_days(self._rows)
+        lay.addWidget(_section(tr("stats.timeline")))
+        nav = QtWidgets.QHBoxLayout()
+        self._prev = QtWidgets.QPushButton("‹")
+        self._next = QtWidgets.QPushButton("›")
+        for b in (self._prev, self._next):
+            b.setFixedWidth(32)
+        self._prev.clicked.connect(lambda: self._step(-1))
+        self._next.clicked.connect(lambda: self._step(1))
+        self._day_label = QtWidgets.QLabel()
+        self._day_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        nav.addWidget(self._prev)
+        nav.addWidget(self._day_label, 1)
+        nav.addWidget(self._next)
+        lay.addLayout(nav)
+        self._timeline = TimelineWidget()
+        lay.addWidget(self._timeline)
+        self._day_index = len(self._days) - 1  # zuletzt gespielter Tag
+        self._show_day()
+
         lay.addWidget(_section(tr("stats.patches")))
         patches = by_version(versioned)
         if not any(p.version for p in patches):
             lay.addWidget(_muted(tr("stats.no_patch")))
         if patches:
             lay.addWidget(self._patch_table(patches), 1)
+            lay.addWidget(_muted(tr("stats.endings_hint")))
         close = QtWidgets.QPushButton(tr("doc.close"))
         close.clicked.connect(self.close)
         lay.addWidget(close, alignment=Qt.AlignmentFlag.AlignRight)
-        self.resize(620, 560)
+        self.resize(700, 700)
+
+    def _step(self, delta: int) -> None:
+        self._day_index = max(0, min(len(self._days) - 1, self._day_index + delta))
+        self._show_day()
+
+    def _show_day(self) -> None:
+        if not self._days:
+            self._day_label.setText(tr("hud.no_data"))
+            self._prev.setEnabled(False)
+            self._next.setEnabled(False)
+            return
+        day = self._days[self._day_index]
+        segments = day_segments(self._rows, day)
+        played = sum((b - a) * 3600 for a, b, _ in segments)
+        weekday = tr_list("weekdays")[day.weekday()]
+        self._day_label.setText(tr("stats.timeline_day", day=f"{weekday} {day.strftime(tr('fmt.date'))}",
+                                   total=fmt_hm(played), count=len(segments)))
+        self._prev.setEnabled(self._day_index > 0)
+        self._next.setEnabled(self._day_index < len(self._days) - 1)
+        self._timeline.set_day(self._rows, day)
 
     @staticmethod
     def _patch_table(patches: list[PatchStats]) -> QtWidgets.QTableWidget:
-        heads = [tr("stats.col_patch"), tr("stats.col_time"), tr("stats.col_sessions"), tr("stats.col_period")]
+        heads = [tr("stats.col_patch"), tr("stats.col_time"), tr("stats.col_sessions"), tr("stats.col_crashes"),
+                 tr("stats.col_server"), tr("stats.col_period")]
         table = QtWidgets.QTableWidget(len(patches), len(heads))
         table.setHorizontalHeaderLabels(heads)
         table.verticalHeader().setVisible(False)
@@ -254,12 +387,19 @@ class StatsDialog(QtWidgets.QDialog):
         table.setSelectionMode(QtWidgets.QAbstractItemView.SelectionMode.NoSelection)
         total = sum(p.total for p in patches) or 1.0
         for row, p in enumerate(patches):
+            per_crash = p.hours_per_crash()
+            crashes = (tr("stats.crash_rate", count=p.crashes, every=fmt_hm(per_crash * 3600))
+                       if per_crash is not None else "0")
             cells = (p.version or tr("stats.unknown"), f"{fmt_hm(p.total)}  ({p.total / total:.0%})",
-                     str(p.sessions), f"{_date(p.first)} – {_date(p.last)}")
+                     str(p.sessions), crashes, str(p.server), f"{_date(p.first)} – {_date(p.last)}")
             for col, text in enumerate(cells):
                 item = QtWidgets.QTableWidgetItem(text)
-                if col in (1, 2):
+                if col in (1, 2, 3, 4):
                     item.setTextAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+                if col == 3 and p.crashes:
+                    item.setForeground(QtGui.QColor(_ENDING_TEXT["crash"]))
+                if col == 4 and p.server:
+                    item.setForeground(QtGui.QColor(_ENDING_TEXT["server"]))
                 table.setItem(row, col, item)
         table.resizeColumnsToContents()
         table.horizontalHeader().setStretchLastSection(True)
@@ -267,12 +407,12 @@ class StatsDialog(QtWidgets.QDialog):
 
 
 def show_stats(game: str, channel: str, sessions: Sequence[tuple[float, float]],
-               versioned: Sequence[tuple[str, float, float]], icon: QtGui.QIcon) -> None:
+               versioned: Sequence[tuple], icon: QtGui.QIcon, rows: Sequence = ()) -> None:
     # bei erneutem Aufruf neu aufbauen, die Daten könnten sich geändert haben
     old = _open.get("stats")
     if old is not None:
         old.close()
-    _single("stats", lambda: StatsDialog(game, channel, sessions, versioned, icon))
+    _single("stats", lambda: StatsDialog(game, channel, sessions, versioned, icon, rows))
 
 
 # --- Sessions bearbeiten --------------------------------------------------------
@@ -322,7 +462,7 @@ class SessionsDialog(QtWidgets.QDialog):
         self.setWindowTitle(tr("sess.title", game=game))
         self.setWindowIcon(icon)
         heads = [tr("sess.col_start"), tr("sess.col_end"), tr("sess.col_duration"),
-                 tr("sess.col_channel"), tr("sess.col_patch")]
+                 tr("sess.col_channel"), tr("sess.col_patch"), tr("sess.col_ending")]
         self._table = QtWidgets.QTableWidget(0, len(heads))
         self._table.setHorizontalHeaderLabels(heads)
         self._table.verticalHeader().setVisible(False)
@@ -357,12 +497,14 @@ class SessionsDialog(QtWidgets.QDialog):
         for i, r in enumerate(rows):
             live = self._tracker.is_live(r.id)
             cells = (_datetime(r.start), tr("sess.running") if live else _datetime(r.end),
-                     fmt_hm(r.end - r.start), r.channel, r.version)
+                     fmt_hm(r.end - r.start), r.channel, r.version, ending_text(r.reason))
             for col, text in enumerate(cells):
                 item = QtWidgets.QTableWidgetItem(text)
                 item.setData(Qt.ItemDataRole.UserRole, r.id)
                 if live:
                     item.setForeground(QtGui.QColor("#64ffb4"))
+                elif col == 5 and r.reason in _ENDING_TEXT:
+                    item.setForeground(QtGui.QColor(_ENDING_TEXT[r.reason]))
                 self._table.setItem(i, col, item)
         self._table.resizeColumnsToContents()
         self._table.horizontalHeader().setStretchLastSection(True)
