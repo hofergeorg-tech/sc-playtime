@@ -47,9 +47,20 @@ class Settings:
     click_through: bool = False
     hide_when_offline: bool = False
     afk_minutes: int = 0  # 0 = AFK-Erkennung aus, sonst Minuten ohne Eingabe
+    # Anti-AFK (antiafk.py): Maus bewegen bzw. Taste rechts neben P (Ü/[) drücken, im Takt, solange eingeschaltet
+    anti_afk_on: bool = False  # Hauptschalter (Menü oder Tastenkürzel)
+    anti_afk_hud: bool = True  # Ringe neben der Uhr (anklickbar)
+    anti_afk_mouse: bool = False
+    anti_afk_mouse_s: int = 60  # Takt in Sekunden
+    anti_afk_pattern: str = "horizontal"  # horizontal, vertical, square, circle, random
+    anti_afk_pixels: int = 5
+    anti_afk_speed: str = "slow"  # slow, medium, fast (antiafk.SPEEDS)
+    anti_afk_key: bool = True
+    anti_afk_key_s: int = 5
     auto_backup: bool = True  # täglich playtime.db nach backups/ sichern (7 Stände)
     hotkey_toggle: str = "Ctrl+Shift+F9"  # Overlay ein-/ausblenden, "" = keins
     hotkey_click: str = "Ctrl+Shift+F11"  # Klicks durchlassen umschalten, "" = keins
+    hotkey_anti_afk: str = "Ctrl+Shift+F12"  # Anti-AFK ein/aus, "" = keins
     # Channel-Ordner von Star Citizen (…\LIVE, …\PTU), gemerkt für das Einordnen älterer Sessions
     game_dirs: list[str] = field(default_factory=list)
 

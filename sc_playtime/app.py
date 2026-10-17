@@ -10,7 +10,8 @@ from pathlib import Path
 
 from PySide6 import QtCore, QtGui, QtWidgets
 
-from . import __version__, backup, docs, endings, i18n
+from . import __version__, antiafk, backup, docs, endings, i18n
+from .antiafk import AntiAfk
 from .hotkeys import Hotkeys
 from .settings import Settings, data_dir
 from .store import Store
@@ -21,7 +22,7 @@ from .updater import is_newer
 
 POLL_MS = 2000
 BACKUP_CHECK_MS = 3600 * 1000  # stündlich prüfen, ob für heute schon gesichert wurde
-HOTKEY_TOGGLE, HOTKEY_CLICK = 1, 2
+HOTKEY_TOGGLE, HOTKEY_CLICK, HOTKEY_ANTI_AFK = 1, 2, 3
 
 
 class _HotkeyBridge(QtCore.QObject):
@@ -62,7 +63,10 @@ def main() -> int:
             settings.game_dirs.append(str(path))
             settings.save(settings_path)
 
-    tracker = Tracker(store, settings.game_list(), afk_s=settings.afk_minutes * 60.0, on_dir=remember_dir)
+    anti_afk = AntiAfk(settings, lambda: [g.exe for g in settings.game_list()])
+    # eigene Anti-AFK-Eingaben zählen nicht als Aktivität
+    tracker = Tracker(store, settings.game_list(), idle=anti_afk.idle_seconds,
+                      afk_s=settings.afk_minutes * 60.0, on_dir=remember_dir)
     # Ältere Sessions ohne Ende-Angabe (Absturz/Server/beendet) aus Star Citizens gesicherten Logs nachtragen
     try:
         dirs = [Path(d) for d in settings.game_dirs] + endings.default_dirs()
@@ -72,6 +76,7 @@ def main() -> int:
     tracker.poll()
 
     overlay = Overlay(tracker, settings, lambda: settings.save(settings_path))
+    overlay.anti_afk = anti_afk
     overlay.games_changed.connect(lambda: tracker.set_games(settings.game_list()))
 
     backups = backup.backup_dir(folder)
@@ -95,11 +100,13 @@ def main() -> int:
     backup_timer.start()
 
     bridge = _HotkeyBridge()
-    bridge.fired.connect(lambda hid: overlay.toggle_hidden() if hid == HOTKEY_TOGGLE
-                         else overlay.toggle_click_through() if hid == HOTKEY_CLICK else None)
+    actions = {HOTKEY_TOGGLE: overlay.toggle_hidden, HOTKEY_CLICK: overlay.toggle_click_through,
+               HOTKEY_ANTI_AFK: overlay.toggle_anti_afk}
+    bridge.fired.connect(lambda hid: actions[hid]() if hid in actions else None)
     hotkeys = Hotkeys(bridge.fired.emit)
     overlay.apply_hotkeys = lambda: hotkeys.set({HOTKEY_TOGGLE: settings.hotkey_toggle,
-                                                 HOTKEY_CLICK: settings.hotkey_click})
+                                                 HOTKEY_CLICK: settings.hotkey_click,
+                                                 HOTKEY_ANTI_AFK: settings.hotkey_anti_afk})
     overlay.apply_hotkeys()
 
     tray = QtWidgets.QSystemTrayIcon(app_icon(), app)
@@ -139,6 +146,14 @@ def main() -> int:
 
     timer = QtCore.QTimer(interval=POLL_MS, timeout=poll)
     timer.start()
+
+    def anti_afk_poll() -> None:
+        if anti_afk.active and tracker.running():
+            anti_afk.poll()
+
+    # eigener, schnellerer Takt: die Taste soll auch alle 5 s gedrückt werden können
+    anti_afk_timer = QtCore.QTimer(interval=antiafk.POLL_MS, timeout=anti_afk_poll)
+    anti_afk_timer.start()
 
     def shutdown() -> None:
         hotkeys.stop()

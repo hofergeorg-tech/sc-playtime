@@ -19,7 +19,7 @@ from typing import TYPE_CHECKING, Callable, Optional
 
 from PySide6 import QtCore, QtGui, QtWidgets
 
-from . import __version__, autostart, backup, dialogs, docs, export, i18n, merge
+from . import __version__, antiafk, autostart, backup, dialogs, docs, export, i18n, merge
 from .docs import resource
 from .i18n import tr
 from .settings import Settings, data_dir
@@ -69,6 +69,7 @@ TILE_PRESETS = (
 
 W = 320
 H_COMPACT = 78
+ANTI_AFK_RECT = QtCore.QRect(148, 37, 56, 30)  # Anti-AFK-Ringe zwischen Uhr und Heute/Woche
 PAD = 12
 TABS = ("day", "week", "month", "year", "total")  # Beschriftung: tr("tab.<key>")
 SCROLLABLE = ("day", "week", "month")  # Reiter, deren Diagramm sich zurückblättern lässt
@@ -193,6 +194,13 @@ def apply_qt_language() -> None:
         app.installTranslator(_qt_translator)
 
 
+def _every(seconds: int) -> str:
+    """Takt fürs Anti-AFK-Menü: "Alle 5 s" bzw. "Alle 2 min"."""
+    if seconds % 60:
+        return tr("anti_afk.every_s", seconds=seconds)
+    return tr("anti_afk.every_min", minutes=seconds // 60)
+
+
 def _open_folder(path: Path) -> None:
     QtGui.QDesktopServices.openUrl(QtCore.QUrl.fromLocalFile(str(path)))
 
@@ -284,6 +292,7 @@ class Overlay(QtWidgets.QWidget):
         self.backup_now: Optional[Callable[[], Path]] = None
         self.merge_rows: Optional[Callable[[list], None]] = None  # Sessions eines anderen PCs einfügen
         self.apply_hotkeys: Callable[[], dict[int, bool]] = lambda: {}
+        self.anti_afk: Optional[antiafk.AntiAfk] = None  # von app.py gesetzt (Ringe neben der Uhr)
 
         self.setWindowTitle("SC Playtime")
         self.setWindowIcon(app_icon())
@@ -307,6 +316,8 @@ class Overlay(QtWidgets.QWidget):
     def _on_pulse(self) -> None:
         if self._running and self.isVisible():
             self.update(QtCore.QRect(8, 10, 24, 24))
+            if self._s.anti_afk_on and self._s.anti_afk_hud:
+                self.update(ANTI_AFK_RECT)
 
     # --- Zustand ------------------------------------------------------------
 
@@ -580,6 +591,8 @@ class Overlay(QtWidgets.QWidget):
 
         # große Session-Uhr
         self._paint_clock(p, fmt_clock(self._duration), QPointF(15, 64), active)
+        if self._ring_rects():
+            self._paint_anti_afk(p)
 
         # Heute / Woche rechts
         if s is not None:
@@ -610,6 +623,57 @@ class Overlay(QtWidgets.QWidget):
             g.setColorAt(1, rgba(CYAN, 0))
             p.setPen(QtGui.QPen(QtGui.QBrush(g), 1))
             p.drawLine(QPointF(PAD, y), QPointF(W - PAD, y))
+
+    def _paint_anti_afk(self, p: QtGui.QPainter) -> None:
+        """Je Anti-AFK-Aktion ein Ring, der sich bis zum nächsten Senden füllt.
+
+        Grau, wenn die Aktion aus ist oder das Spiel nicht im Vordergrund (dann wird nichts gesendet).
+        """
+        progress = dict(self.anti_afk.progress())
+        for action, box in self._ring_rects():
+            on = action in progress
+            done = progress.get(action, 0.0)
+            color = CYAN if on and not self.anti_afk.waiting else DIM
+            c = box.center()
+            p.setBrush(Qt.BrushStyle.NoBrush)
+            p.setPen(QtGui.QPen(rgba(color, 45), 2.4))
+            p.drawEllipse(box)
+            pen = QtGui.QPen(rgba(color), 2.4)
+            pen.setCapStyle(Qt.PenCapStyle.FlatCap)
+            p.setPen(pen)
+            p.drawArc(box, 90 * 16, -round(done * 360 * 16))  # von 12 Uhr im Uhrzeigersinn
+            p.setPen(QtGui.QPen(rgba(color, 220 if on else 140), 1.2))
+            if action == "key":
+                p.setFont(font(8, QtGui.QFont.Weight.Bold))
+                p.drawText(box, Qt.AlignmentFlag.AlignCenter, antiafk.key_name())
+            else:  # kleine Maus
+                p.drawRoundedRect(QRectF(c.x() - 2.6, c.y() - 4, 5.2, 8), 2.6, 2.6)
+                p.drawLine(QPointF(c.x(), c.y() - 4), QPointF(c.x(), c.y() - 1.5))
+
+    def _ring_rects(self) -> list[tuple[str, QRectF]]:
+        """Anti-AFK-Ringe (Taste, Maus) neben der Uhr; anklickbar, solange das Spiel läuft."""
+        if not (self._running and self.anti_afk is not None and self._s.anti_afk_hud and antiafk.SUPPORTED):
+            return []
+        r, y = 9.0, ANTI_AFK_RECT.center().y() + 1
+        return [(a, QRectF(ANTI_AFK_RECT.left() + 13 + i * 26 - r, y - r, 2 * r, 2 * r))
+                for i, a in enumerate(("key", "mouse"))]
+
+    def toggle_anti_afk_action(self, action: str) -> None:
+        """Klick auf einen Ring: diese Aktion ein/aus. Ist Anti-AFK ganz aus, startet es nur mit ihr."""
+        s = self._s
+        name = "anti_afk_key" if action == "key" else "anti_afk_mouse"
+        other = "anti_afk_mouse" if action == "key" else "anti_afk_key"
+        if not s.anti_afk_on:
+            s.anti_afk_on = True
+            setattr(s, name, True)
+            setattr(s, other, False)
+        elif not getattr(s, name):
+            setattr(s, name, True)
+        elif getattr(s, other):
+            setattr(s, name, False)
+        else:
+            s.anti_afk_on = False  # letzte Aktion: ganz aus, Auswahl bleibt fürs Tastenkürzel
+        self._changed()
 
     def _paint_clock(self, p: QtGui.QPainter, text: str, origin: QPointF, active: bool) -> None:
         """Ziffern in fester Breite, damit die Uhr beim Zählen nicht wackelt."""
@@ -884,6 +948,9 @@ class Overlay(QtWidgets.QWidget):
         if arrow:
             page = max(1, len(self._bars) // 2)
             return self.scroll_chart(-arrow * page)
+        for action, r in self._ring_rects():
+            if r.adjusted(-3, -3, 3, 3).contains(pos):
+                return self.toggle_anti_afk_action(action)
         for ch, r in lay.chips:
             if r.contains(pos):
                 self._s.channel = ch
@@ -960,6 +1027,8 @@ class Overlay(QtWidgets.QWidget):
         self._check(menu, tr("menu.hide_offline"), s.hide_when_offline,
                     lambda on: self._set("hide_when_offline", on))
         self._afk_menu(menu.addMenu(tr("menu.afk")))
+        if antiafk.SUPPORTED:
+            self._anti_afk_menu(menu.addMenu(tr("menu.anti_afk")))
         menu.addAction(tr("menu.hotkeys"), self._edit_hotkeys)
         self._check(menu, tr("menu.autostart_win" if sys.platform == "win32" else "menu.autostart_other"),
                     autostart.is_enabled(), autostart.set_enabled)
@@ -986,6 +1055,42 @@ class Overlay(QtWidgets.QWidget):
         self._s.afk_minutes = minutes
         self._tracker.afk_s = minutes * 60.0
         self._changed()
+
+    def _anti_afk_menu(self, menu: QtWidgets.QMenu) -> None:
+        s = self._s
+        self._check(menu, tr("anti_afk.on"), s.anti_afk_on, lambda on: self._set("anti_afk_on", on))
+        self._check(menu, tr("anti_afk.hud"), s.anti_afk_hud, lambda on: self._set("anti_afk_hud", on))
+        menu.addSeparator()
+        self._check(menu, tr("anti_afk.mouse"), s.anti_afk_mouse, lambda on: self._set("anti_afk_mouse", on))
+        self._choice_menu(menu.addMenu(tr("anti_afk.pattern")), "anti_afk_pattern",
+                          [(p, tr(f"pattern.{p}")) for p in antiafk.PATTERNS])
+        menu.addAction(self._slider(menu, tr("anti_afk.pixels"), 1, antiafk.MAX_PIXELS, s.anti_afk_pixels,
+                                    self._set_pixels, unit="px"))
+        self._choice_menu(menu.addMenu(tr("anti_afk.speed")), "anti_afk_speed",
+                          [(k, tr(f"speed.{k}")) for k in antiafk.SPEEDS])
+        self._choice_menu(menu.addMenu(tr("anti_afk.mouse_every")), "anti_afk_mouse_s",
+                          [(sec, _every(sec)) for sec in antiafk.MOUSE_INTERVALS])
+        menu.addSeparator()
+        key = antiafk.key_name()
+        self._check(menu, tr("anti_afk.key", name=key), s.anti_afk_key, lambda on: self._set("anti_afk_key", on))
+        self._choice_menu(menu.addMenu(tr("anti_afk.key_every", name=key)), "anti_afk_key_s",
+                          [(sec, _every(sec)) for sec in antiafk.KEY_INTERVALS])
+        menu.addSeparator()
+        hint = menu.addAction(tr("anti_afk.hint"))
+        hint.setEnabled(False)
+
+    def _choice_menu(self, menu: QtWidgets.QMenu, name: str, choices: list[tuple[object, str]]) -> None:
+        group = QtGui.QActionGroup(menu)
+        for value, text in choices:
+            act = menu.addAction(text)
+            act.setCheckable(True)
+            act.setChecked(getattr(self._s, name) == value)
+            act.setActionGroup(group)
+            act.triggered.connect(lambda _c=False, v=value: self._set(name, v))
+
+    def _set_pixels(self, v: int) -> None:
+        self._s.anti_afk_pixels = v
+        self._save()
 
     def _data_menu(self, menu: QtWidgets.QMenu) -> None:
         menu.addAction(tr("menu.export_csv"), lambda: self._export("csv"))
@@ -1074,16 +1179,19 @@ class Overlay(QtWidgets.QWidget):
         dlg = dialogs.HotkeyDialog(self._s)
         if dlg.exec() != QtWidgets.QDialog.DialogCode.Accepted:
             return
-        self._s.hotkey_toggle, self._s.hotkey_click = dlg.values()
+        self._s.hotkey_toggle, self._s.hotkey_click, self._s.hotkey_anti_afk = dlg.values()
         self._save()
         result = self.apply_hotkeys()
-        texts = {1: self._s.hotkey_toggle, 2: self._s.hotkey_click}
+        texts = {1: self._s.hotkey_toggle, 2: self._s.hotkey_click, 3: self._s.hotkey_anti_afk}
         failed = [texts[i] for i, ok in result.items() if not ok and texts.get(i)]
         if failed and sys.platform == "win32":
             QtWidgets.QMessageBox.warning(None, tr("hk.title"), tr("hk.failed", keys=", ".join(failed)))
 
     def toggle_click_through(self) -> None:
         self._set_click_through(not self._s.click_through)
+
+    def toggle_anti_afk(self) -> None:
+        self._set("anti_afk_on", not self._s.anti_afk_on)
 
     def _language_menu(self, menu: QtWidgets.QMenu) -> None:
         group = QtGui.QActionGroup(menu)
@@ -1111,19 +1219,19 @@ class Overlay(QtWidgets.QWidget):
 
     @staticmethod
     def _slider(menu: QtWidgets.QMenu, title: str, lo: int, hi: int, value: int,
-                on_change: Callable[[int], None]) -> QtWidgets.QWidgetAction:
+                on_change: Callable[[int], None], unit: str = "%") -> QtWidgets.QWidgetAction:
         w = QtWidgets.QWidget()
         lay = QtWidgets.QVBoxLayout(w)
         lay.setContentsMargins(24, 4, 18, 6)
         lay.setSpacing(4)
-        label = QtWidgets.QLabel(f"{title}  {value} %")
+        label = QtWidgets.QLabel(f"{title}  {value} {unit}")
         slider = QtWidgets.QSlider(Qt.Orientation.Horizontal)
         slider.setRange(lo, hi)
         slider.setValue(value)
         slider.setFixedWidth(190)
 
         def changed(v: int) -> None:
-            label.setText(f"{title}  {v} %")
+            label.setText(f"{title}  {v} {unit}")
             on_change(v)
 
         slider.valueChanged.connect(changed)

@@ -563,9 +563,11 @@ class HotkeyDialog(QtWidgets.QDialog):
         self.setWindowTitle(tr("hk.title"))
         self._toggle = self._edit(settings.hotkey_toggle)
         self._click = self._edit(settings.hotkey_click)
+        self._anti_afk = self._edit(settings.hotkey_anti_afk)
         form = QtWidgets.QFormLayout()
         form.addRow(tr("hk.toggle"), self._toggle)
         form.addRow(tr("hk.click"), self._click)
+        form.addRow(tr("hk.anti_afk"), self._anti_afk)
         buttons = QtWidgets.QDialogButtonBox(
             QtWidgets.QDialogButtonBox.StandardButton.Ok | QtWidgets.QDialogButtonBox.StandardButton.Cancel)
         buttons.accepted.connect(self.accept)
@@ -583,6 +585,6 @@ class HotkeyDialog(QtWidgets.QDialog):
         edit.setClearButtonEnabled(True)
         return edit
 
-    def values(self) -> tuple[str, str]:
+    def values(self) -> tuple[str, str, str]:
         fmt = QtGui.QKeySequence.SequenceFormat.PortableText
-        return self._toggle.keySequence().toString(fmt), self._click.keySequence().toString(fmt)
+        return tuple(e.keySequence().toString(fmt) for e in (self._toggle, self._click, self._anti_afk))
