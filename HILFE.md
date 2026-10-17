@@ -17,6 +17,7 @@ Session sowie deine Statistik. Es läuft unter **Windows** und **Linux**.
 - [Auswertung (Heatmap, Tagesverlauf, Patches)](#auswertung-heatmap-tagesverlauf-patches)
 - [Sessions bearbeiten](#sessions-bearbeiten)
 - [AFK-Erkennung](#afk-erkennung)
+- [Anti-AFK](#anti-afk)
 - [Tastenkürzel](#tastenkürzel)
 - [Export und Sicherung](#export-und-sicherung)
 - [So wird gezählt](#so-wird-gezählt)
@@ -277,6 +278,27 @@ ohne Tastatur-, Maus- oder Controller-Eingabe.
 - Unter Linux funktioniert das unter X11/XWayland (Bibliothek `libXss`); ist sie nicht
   vorhanden, bleibt die Erkennung wirkungslos.
 
+## Anti-AFK
+
+Star Citizen wirft dich nach einiger Zeit ohne Eingabe aus dem Spiel. **Menü → Anti-AFK**
+hält das Spiel wach (nur **Windows**):
+
+- **Anti-AFK aktiv** ist der Hauptschalter (auch per **Strg+Umschalt+F12**). Solange er an
+  ist, laufen die gewählten Aktionen im Takt – auch während du selbst spielst.
+- **Taste drücken:** drückt die Taste rechts neben P (Ü auf deutscher, [ auf US-Tastatur),
+  Standard alle 5 s. Am besten im Spiel keine Funktion darauf legen.
+- **Maus bewegen:** fährt ein kleines Muster ab (Rechts–links, Hoch–runter, Quadrat, Kreis
+  oder zufällig) und steht danach wieder am Ausgangspunkt. **Weite** (1–100 Pixel),
+  **Tempo** und **Maus-Takt** sind einstellbar.
+- Gesendet wird **nur, wenn das Spiel im Vordergrund ist** – du tippst also nie
+  versehentlich in einen Chat oder ein anderes Fenster.
+- Es werden echte Tasten-Scancodes geschickt; reine Tastencodes (wie bei „Move Mouse“)
+  ignoriert Star Citizen.
+- **Ringe in der Anzeige:** Neben der Uhr zeigt je ein Ring den Takt von Taste und Maus,
+  das Overlay zeigt **ANTI-AFK**. Ein Klick auf einen Ring schaltet diese Aktion ein oder aus.
+- Die Eingaben von Anti-AFK zählen nicht als Aktivität: die [AFK-Erkennung](#afk-erkennung)
+  pausiert weiter, wenn du selbst nichts tust.
+
 ## Tastenkürzel
 
 Globale Tastenkürzel funktionieren überall, auch während das Spiel im Vordergrund ist
@@ -286,6 +308,7 @@ Globale Tastenkürzel funktionieren überall, auch während das Spiel im Vorderg
 | --- | --- |
 | **Strg+Umschalt+F9** | Overlay ein-/ausblenden |
 | **Strg+Umschalt+F11** | „Klicks durchlassen“ ein-/ausschalten |
+| **Strg+Umschalt+F12** | Anti-AFK ein-/ausschalten |
 
 Unter **Menü → Tastenkürzel …** lassen sie sich ändern: Feld anklicken, die neue
 Kombination drücken, mit ✕ leeren (= kein Kürzel). Erlaubt sind Buchstaben, Ziffern,

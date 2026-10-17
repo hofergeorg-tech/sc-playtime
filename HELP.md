@@ -17,6 +17,7 @@ your statistics. It runs on **Windows** and **Linux**.
 - [Analysis (heatmap, day timeline, patches)](#analysis-heatmap-day-timeline-patches)
 - [Editing sessions](#editing-sessions)
 - [AFK detection](#afk-detection)
+- [Anti-AFK](#anti-afk)
 - [Hotkeys](#hotkeys)
 - [Export and backup](#export-and-backup)
 - [How time is counted](#how-time-is-counted)
@@ -270,6 +271,25 @@ pause after **5, 10, 15 or 30 minutes** without keyboard, mouse or controller in
 - On Linux this works under X11/XWayland (library `libXss`); without it the detection
   has no effect.
 
+## Anti-AFK
+
+Star Citizen kicks you out after a while without input. **Menu → Anti-AFK** keeps the game
+awake (**Windows** only):
+
+- **Anti-AFK active** is the main switch (also **Ctrl+Shift+F12**). While it is on, the chosen
+  actions run on their interval – even while you are playing yourself.
+- **Press key:** presses the key right of P ([ on US, Ü on German keyboards), every 5 s by
+  default. Best not to bind anything to it in the game.
+- **Move mouse:** traces a small pattern (right–left, up–down, square, circle or random) and
+  ends where it started. **Distance** (1–100 pixels), **speed** and **mouse interval** can be set.
+- Input is sent **only while the game is in the foreground** – so you never type into a chat
+  or another window by accident.
+- Real key scancodes are sent; Star Citizen ignores plain key codes (as sent by “Move Mouse”).
+- **Rings in the overlay:** next to the clock one ring each shows the interval of key and
+  mouse, and the overlay shows **ANTI-AFK**. Click a ring to turn that action on or off.
+- Anti-AFK input does not count as activity: [AFK detection](#afk-detection) still pauses
+  when you do nothing yourself.
+
 ## Hotkeys
 
 Global hotkeys work everywhere, even while the game is in the foreground (**Windows**
@@ -279,6 +299,7 @@ only):
 | --- | --- |
 | **Ctrl+Shift+F9** | show/hide the overlay |
 | **Ctrl+Shift+F11** | turn "Click-through" on/off |
+| **Ctrl+Shift+F12** | turn Anti-AFK on/off |
 
 Change them under **Menu → Hotkeys …**: click a field, press the new combination, clear
 it with ✕ (= no hotkey). Letters, digits, F1–F24, Home/End/Ins/Del, PgUp/PgDown, arrow

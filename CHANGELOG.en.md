@@ -5,6 +5,16 @@
 All notable changes to SC Playtime. Format based on
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [1.6.0] – 2026-10-17
+
+### Added
+- **Anti-AFK** (Windows): Menu → Anti-AFK keeps Star Citizen awake. Presses the key right of P
+  ([/Ü, every 5 s by default) and/or moves the mouse in a small pattern (right–left, up–down,
+  square, circle, random; distance, speed and interval adjustable). Real scancodes are sent –
+  only while the game is in the foreground. On/off via the menu or **Ctrl+Shift+F12**; rings next
+  to the clock show the interval and toggle the action on click. Its own input does not count
+  for AFK detection.
+
 ## [1.5.0] – 2026-10-09
 
 ### Added

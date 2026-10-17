@@ -1,3 +1,3 @@
 """SC Playtime — Mini-Overlay für Spielzeit-Tracking (Star Citizen & andere Spiele)."""
 
-__version__ = "1.5.0"
+__version__ = "1.6.0"

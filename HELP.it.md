@@ -17,6 +17,7 @@ e le tue statistiche. Funziona su **Windows** e **Linux**.
 - [Analisi (mappa di calore, andamento della giornata, patch)](#analisi-mappa-di-calore-andamento-della-giornata-patch)
 - [Modificare le sessioni](#modificare-le-sessioni)
 - [Rilevamento AFK](#rilevamento-afk)
+- [Anti-AFK](#anti-afk)
 - [Scorciatoie da tastiera](#scorciatoie-da-tastiera)
 - [Esportazione e backup](#esportazione-e-backup)
 - [Come viene contato il tempo](#come-viene-contato-il-tempo)
@@ -274,6 +275,27 @@ mouse o controller.
 - Su Linux funziona con X11/XWayland (libreria `libXss`); senza di essa il rilevamento non
   ha effetto.
 
+## Anti-AFK
+
+Star Citizen ti disconnette dopo un po' senza input. **Menu → Anti-AFK** tiene sveglio il
+gioco (solo **Windows**):
+
+- **Anti-AFK attivo** è l'interruttore principale (anche **Ctrl+Maiusc+F12**). Finché è acceso,
+  le azioni scelte girano al loro ritmo, anche mentre giochi.
+- **Premi il tasto:** preme il tasto a destra della P (è sulla tastiera italiana, [ su quella
+  US), di default ogni 5 s. Meglio non assegnargli nulla nel gioco.
+- **Muovi il mouse:** percorre un piccolo schema (destra–sinistra, su–giù, quadrato, cerchio o
+  casuale) e torna al punto di partenza. **Ampiezza** (1–100 pixel), **velocità** e
+  **intervallo del mouse** sono regolabili.
+- L'input viene inviato **solo se il gioco è in primo piano**: non scrivi mai per sbaglio in
+  una chat o in un'altra finestra.
+- Vengono inviati veri scancode; Star Citizen ignora i semplici codici tasto (come quelli di
+  «Move Mouse»).
+- **Anelli nell'overlay:** accanto all'orologio un anello per azione mostra il ritmo e l'overlay
+  indica **ANTI-AFK**. Un clic su un anello attiva o disattiva quell'azione.
+- Gli input dell'Anti-AFK non contano come attività: il [rilevamento AFK](#rilevamento-afk)
+  continua a mettere in pausa se tu non fai nulla.
+
 ## Scorciatoie da tastiera
 
 Le scorciatoie globali funzionano ovunque, anche con il gioco in primo piano (solo
@@ -283,6 +305,7 @@ Le scorciatoie globali funzionano ovunque, anche con il gioco in primo piano (so
 | --- | --- |
 | **Ctrl+Maiusc+F9** | mostrare/nascondere l'overlay |
 | **Ctrl+Maiusc+F11** | attivare/disattivare «Lascia passare i clic» |
+| **Ctrl+Maiusc+F12** | attivare/disattivare l'Anti-AFK |
 
 Si cambiano in **Menu → Scorciatoie da tastiera …**: fai clic sul campo, premi la nuova
 combinazione, svuotalo con ✕ (= nessuna scorciatoia). Sono ammessi lettere, cifre,

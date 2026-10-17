@@ -17,6 +17,7 @@ Działa w systemach **Windows** i **Linux**.
 - [Analiza (mapa cieplna, przebieg dnia, patche)](#analiza-mapa-cieplna-przebieg-dnia-patche)
 - [Edycja sesji](#edycja-sesji)
 - [Wykrywanie AFK](#wykrywanie-afk)
+- [Anty-AFK](#anty-afk)
 - [Skróty klawiszowe](#skróty-klawiszowe)
 - [Eksport i kopie zapasowe](#eksport-i-kopie-zapasowe)
 - [Jak liczony jest czas](#jak-liczony-jest-czas)
@@ -274,6 +275,26 @@ myszy lub kontrolera.
 - W Linuksie działa to pod X11/XWayland (biblioteka `libXss`); bez niej wykrywanie nie
   działa.
 
+## Anty-AFK
+
+Star Citizen wyrzuca z gry po pewnym czasie bez aktywności. **Menu → Anty-AFK** utrzymuje
+grę w gotowości (tylko **Windows**):
+
+- **Anty-AFK włączony** to główny przełącznik (także **Ctrl+Shift+F12**). Gdy jest włączony,
+  wybrane akcje działają w swoim rytmie – także gdy sam grasz.
+- **Naciskaj klawisz:** naciska klawisz na prawo od P ([ na klawiaturze US i polskiej),
+  domyślnie co 5 s. Najlepiej nie przypisywać mu niczego w grze.
+- **Poruszaj myszą:** rysuje mały wzór (prawo–lewo, góra–dół, kwadrat, koło lub losowo) i wraca
+  do punktu startu. **Zasięg** (1–100 pikseli), **tempo** i **rytm myszy** można ustawić.
+- Dane są wysyłane **tylko gdy gra jest na pierwszym planie** – nigdy nie wpiszesz niczego
+  przypadkiem na czat ani do innego okna.
+- Wysyłane są prawdziwe scancode'y; Star Citizen ignoruje zwykłe kody klawiszy (np. z
+  „Move Mouse”).
+- **Pierścienie w nakładce:** obok zegara po jednym pierścieniu pokazuje rytm klawisza i myszy,
+  a nakładka pokazuje **ANTI-AFK**. Kliknięcie pierścienia włącza lub wyłącza tę akcję.
+- Akcje Anty-AFK nie liczą się jako aktywność: [wykrywanie AFK](#wykrywanie-afk) nadal
+  wstrzymuje, gdy sam nic nie robisz.
+
 ## Skróty klawiszowe
 
 Globalne skróty działają wszędzie, także gdy gra jest na pierwszym planie (tylko
@@ -283,6 +304,7 @@ Globalne skróty działają wszędzie, także gdy gra jest na pierwszym planie (
 | --- | --- |
 | **Ctrl+Shift+F9** | pokazanie/ukrycie nakładki |
 | **Ctrl+Shift+F11** | włączenie/wyłączenie „Przepuszczaj kliknięcia” |
+| **Ctrl+Shift+F12** | włączenie/wyłączenie Anty-AFK |
 
 Zmienisz je w **Menu → Skróty klawiszowe …**: kliknij pole, naciśnij nową kombinację,
 wyczyść przyciskiem ✕ (= brak skrótu). Dozwolone są litery, cyfry, F1–F24,

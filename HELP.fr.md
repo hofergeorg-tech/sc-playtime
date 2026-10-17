@@ -17,6 +17,7 @@ cours ainsi que vos statistiques. Il fonctionne sous **Windows** et **Linux**.
 - [Analyse (carte de chaleur, déroulé de la journée, patchs)](#analyse-carte-de-chaleur-déroulé-de-la-journée-patchs)
 - [Modifier les sessions](#modifier-les-sessions)
 - [Détection AFK](#détection-afk)
+- [Anti-AFK](#anti-afk)
 - [Raccourcis clavier](#raccourcis-clavier)
 - [Export et sauvegarde](#export-et-sauvegarde)
 - [Comment le temps est compté](#comment-le-temps-est-compté)
@@ -279,6 +280,27 @@ La session en cours (verte, « en cours ») est verrouillée jusqu'à la fermetu
 - Sous Linux, cela fonctionne avec X11/XWayland (bibliothèque `libXss`) ; sans elle, la
   détection reste sans effet.
 
+## Anti-AFK
+
+Star Citizen vous déconnecte après un moment sans saisie. **Menu → Anti-AFK** garde le jeu
+éveillé (**Windows** uniquement) :
+
+- **Anti-AFK actif** est l'interrupteur principal (aussi **Ctrl+Maj+F12**). Tant qu'il est
+  activé, les actions choisies tournent à leur rythme – même pendant que vous jouez.
+- **Appuyer sur la touche :** appuie sur la touche à droite de P (^ en AZERTY, [ en QWERTY),
+  par défaut toutes les 5 s. Mieux vaut ne rien lui attribuer dans le jeu.
+- **Bouger la souris :** suit un petit motif (droite–gauche, haut–bas, carré, cercle ou
+  aléatoire) et revient au point de départ. **Amplitude** (1–100 pixels), **vitesse** et
+  **intervalle souris** sont réglables.
+- Rien n'est envoyé **si le jeu n'est pas au premier plan** – vous ne tapez donc jamais par
+  erreur dans un chat ou une autre fenêtre.
+- De vrais scancodes sont envoyés ; Star Citizen ignore les simples codes de touche (comme
+  ceux de « Move Mouse »).
+- **Anneaux dans l'overlay :** à côté de l'horloge, un anneau par action montre son rythme,
+  l'overlay affiche **ANTI-AFK**. Un clic sur un anneau active ou désactive cette action.
+- Les saisies de l'Anti-AFK ne comptent pas comme activité : la [détection AFK](#détection-afk)
+  met toujours en pause si vous ne faites rien.
+
 ## Raccourcis clavier
 
 Les raccourcis globaux fonctionnent partout, même quand le jeu est au premier plan
@@ -288,6 +310,7 @@ Les raccourcis globaux fonctionnent partout, même quand le jeu est au premier p
 | --- | --- |
 | **Ctrl+Maj+F9** | afficher/masquer l'overlay |
 | **Ctrl+Maj+F11** | activer/désactiver « Laisser passer les clics » |
+| **Ctrl+Maj+F12** | activer/désactiver l'Anti-AFK |
 
 À modifier sous **Menu → Raccourcis clavier …** : cliquer dans le champ, appuyer sur la
 nouvelle combinaison, vider avec ✕ (= aucun raccourci). Sont autorisés les lettres,

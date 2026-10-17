@@ -5,6 +5,16 @@
 Wszystkie istotne zmiany w SC Playtime. Format oparty na
 [Keep a Changelog](https://keepachangelog.com/pl/1.1.0/).
 
+## [1.6.0] – 2026-10-17
+
+### Nowości
+- **Anty-AFK** (Windows): Menu → Anty-AFK utrzymuje Star Citizen w gotowości. Naciska w rytmie
+  klawisz na prawo od P (domyślnie co 5 s) i/lub porusza myszą według małego wzoru (prawo–lewo,
+  góra–dół, kwadrat, koło, losowo; zasięg, tempo i rytm do ustawienia). Wysyłane są prawdziwe
+  scancode'y – tylko gdy gra jest na pierwszym planie. Włączanie w menu lub **Ctrl+Shift+F12**;
+  pierścienie obok zegara pokazują rytm i przełączają akcję kliknięciem. Jego akcje nie liczą
+  się do wykrywania AFK.
+
 ## [1.5.0] – 2026-10-09
 
 ### Nowości

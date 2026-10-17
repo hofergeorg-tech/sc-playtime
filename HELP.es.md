@@ -17,6 +17,7 @@ tus estadísticas. Funciona en **Windows** y **Linux**.
 - [Análisis (mapa de calor, cronología del día, parches)](#análisis-mapa-de-calor-cronología-del-día-parches)
 - [Editar sesiones](#editar-sesiones)
 - [Detección AFK](#detección-afk)
+- [Anti-AFK](#anti-afk)
 - [Atajos de teclado](#atajos-de-teclado)
 - [Exportar y copias de seguridad](#exportar-y-copias-de-seguridad)
 - [Cómo se cuenta](#cómo-se-cuenta)
@@ -277,6 +278,27 @@ ni mando.
 - En Linux funciona con X11/XWayland (biblioteca `libXss`); sin ella la detección no tiene
   efecto.
 
+## Anti-AFK
+
+Star Citizen te expulsa tras un rato sin actividad. **Menú → Anti-AFK** mantiene el juego
+despierto (solo **Windows**):
+
+- **Anti-AFK activo** es el interruptor principal (también **Ctrl+Mayús+F12**). Mientras esté
+  activado, las acciones elegidas se ejecutan a su ritmo, incluso mientras juegas.
+- **Pulsar la tecla:** pulsa la tecla a la derecha de la P (` en teclado español, [ en US),
+  por defecto cada 5 s. Mejor no asignarle nada en el juego.
+- **Mover el ratón:** recorre un pequeño patrón (derecha–izquierda, arriba–abajo, cuadrado,
+  círculo o aleatorio) y vuelve al punto de partida. **Distancia** (1–100 píxeles),
+  **velocidad** e **intervalo del ratón** son configurables.
+- Solo se envía **si el juego está en primer plano**: nunca escribirás por error en un chat u
+  otra ventana.
+- Se envían scancodes reales; Star Citizen ignora los simples códigos de tecla (como los de
+  «Move Mouse»).
+- **Anillos en el overlay:** junto al reloj, un anillo por acción muestra su ritmo y el overlay
+  indica **ANTI-AFK**. Un clic en un anillo activa o desactiva esa acción.
+- Las entradas del Anti-AFK no cuentan como actividad: la [detección AFK](#detección-afk) sigue
+  pausando si tú no haces nada.
+
 ## Atajos de teclado
 
 Los atajos globales funcionan en todas partes, también con el juego en primer plano (solo
@@ -286,6 +308,7 @@ Los atajos globales funcionan en todas partes, también con el juego en primer p
 | --- | --- |
 | **Ctrl+Mayús+F9** | mostrar/ocultar el overlay |
 | **Ctrl+Mayús+F11** | activar/desactivar «Dejar pasar los clics» |
+| **Ctrl+Mayús+F12** | activar/desactivar Anti-AFK |
 
 Se cambian en **Menú → Atajos de teclado …**: haz clic en el campo, pulsa la combinación
 nueva, vacíalo con ✕ (= sin atajo). Se permiten letras, cifras, F1–F24, Inicio/Fin/Insert/
